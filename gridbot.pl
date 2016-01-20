@@ -176,6 +176,7 @@ sub process {
         $irc->yield( privmsg => $dest => "gridBot beta0.2-r$revision usage:");
         $irc->yield( privmsg => $dest => "status             : Tells you about the grid");
         $irc->yield( privmsg => $dest => "gueststat [guest]  : Tells you a specific clone");
+        $irc->yield( privmsg => $dest => "guestset [gst] [s] : Sets status for a specific clone");
         $irc->yield( privmsg => $dest => "startcage [C]      : Starts a cage C=cage");
         $irc->yield( privmsg => $dest => "startrack [C R]    : Starts a rack C=cage, R=rack");
         $irc->yield( privmsg => $dest => "startgrp [C R G]   : Starts a group C=cage, R=rack, G=group");
@@ -214,6 +215,14 @@ sub process {
         $irc->yield( privmsg => $channel => "Finding status of $guest for $nick" );
         my $status = ( !defined $gueststatus->{ $guest } ) ? "unknown" : $gueststatus->{ $guest };
         $irc->yield( privmsg => $dest =>  "Clone $guest is $status");
+    }
+    # Set a guest status
+    if ( my ($guest, $status) = $what =~ /^guestset (.+) (.+)/ ) {
+        my $dest = ( $pubpriv eq 'priv' ) ? $nick : $channel;
+        $guest =~ tr[a-z][A-Z];
+        $irc->yield( privmsg => $channel => "Setting status of $guest to $status for $nick" );
+        $gueststatus->{ $guest } = $status;
+        $irc->yield( privmsg => $dest =>  "Clone $guest is now set to $status");
     }
     # Tweet the grid status
     if ( my ($tweethashtag) = $what =~ /^tweetstats (.+)/ ) {
@@ -719,17 +728,17 @@ sub pop_action {
 sub action_guest_status {
 	for my $guest ( keys %$gueststatus ) {
 		my $status = $gueststatus->{ $guest };
-		print "$guest is $status: ";
 		switch ($status) {
 			case "active" {
 				`ping -c1 $guest`;
 				if ($? != 0) {
 					$gueststatus->{ $guest }='recycling';
 					$poe_kernel->post('command', 'enqueue', '', "SIGNAL SHUTDOWN $guest WITHIN 30", "");
-					print "problem ping, set to recycle.\n";
-				} else { print "okay.\n"; }
+					print "$guest problem ping, set to recycle.\n";
+				}
 			}
 			case "activating" {
+				print "$guest is $status: ";
 				`ping -c1 $guest`;
 				if ($? == 0) {
 					$gueststatus->{ $guest }='active';
@@ -737,6 +746,7 @@ sub action_guest_status {
 				} else { print "\n"; }
 			}
 			case "deactivating" {
+				print "$guest is $status: ";
 				my $cmdout = `smcli isq -T $guest -H IUCV`;
 				$cmdout =~ s/^\s+|\s+$//g;
 				if ("$cmdout" ne "$guest") {
@@ -745,15 +755,31 @@ sub action_guest_status {
 				} else { print "\n"; }
 			}
 			case "activate" {
+				print "$guest is $status: ";
 				$poe_kernel->post('command', 'enqueue', '', "XAUTOLOG $guest", "");
 				$gueststatus->{$guest}='activating';
 				print "issued command, marking as activating.\n";
 			}	 
 			case "deactivate" {
+				print "$guest is $status: ";
 				$poe_kernel->post('command', 'enqueue', '', "SIGNAL SHUTDOWN $guest WITHIN 30", "");
 				$gueststatus->{$guest}='deactivating';
 				print "issued command, marking as deactivating.\n";
-			}	 
+			}
+			case "recycling" {
+				print "$guest is $status: ";
+				# is it down yet?
+				my $cmdout = `smcli isq -T $guest -H IUCV`;
+				$cmdout =~ s/^\s+|\s+$//g;
+				if ("$cmdout" ne "$guest") {
+					$gueststatus->{ $guest }='activating';
+					$poe_kernel->post('command', 'enqueue', '', "XAUTOLOG $guest", "");
+					print "came down, restarted, marked as activating.\n"
+				} else { print "still waiting to come down.\n"};
+			}
+			else {
+				print "$guest: unknown status $status.\n";
+			}
 		}
 	}
 	return;
