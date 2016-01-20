@@ -18,6 +18,7 @@ my $password = 'gridBotTObDIRG';
 my $ircname  = 'Management of the Cloning Grid';
 my $server   = 'zgn2c001.z.mel.stg.ibm';
 
+my $gueststatus = {};
 my @channels = ('#bodsz-cloning');
 
 my $TWITTER_CONSUMER_KEY = "u8cGtaZRPH9ROZUf0HZgEOtS7";
@@ -166,6 +167,7 @@ sub process {
         my $dest = ( $pubpriv eq 'priv' ) ? $nick : $channel;
         $irc->yield( privmsg => $dest => "gridBot beta0.2-r$revision usage:");
         $irc->yield( privmsg => $dest => "status             : Tells you about the grid");
+        $irc->yield( privmsg => $dest => "gueststat [guest]  : Tells you a specific clone");
         $irc->yield( privmsg => $dest => "startcage [C]      : Starts a cage C=cage");
         $irc->yield( privmsg => $dest => "startrack [C R]    : Starts a rack C=cage, R=rack");
         $irc->yield( privmsg => $dest => "startgrp [C R G]   : Starts a group C=cage, R=rack, G=group");
@@ -196,6 +198,14 @@ sub process {
 #        $smapicommand =~ tr[a-z][A-Z];
         $irc->yield( privmsg => $channel => "Issuing SMAPI $smapicommand for $nick" );
         $poe_kernel->post('smapi', 'enqueue', '', "$smapicommand", "$nick", "irc");
+    }
+    # Get a guest status
+    if ( my ($guest) = $what =~ /^gueststat (.+)/ ) {
+        my $dest = ( $pubpriv eq 'priv' ) ? $nick : $channel;
+        $guest =~ tr[a-z][A-Z];
+        $irc->yield( privmsg => $channel => "Finding status of $guest for $nick" );
+        my $status = ( !defined $gueststatus->{ $guest } ) ? "unknown" : $gueststatus->{ $guest };
+        $irc->yield( privmsg => $dest =>  "Clone $guest is $status");
     }
     # Tweet the grid status
     if ( my ($tweethashtag) = $what =~ /^tweetstats (.+)/ ) {
@@ -456,6 +466,7 @@ sub run_vmcp {
         @cpresult = grep { $_ =~ /^GN2C/ } @cpresult;
         $gridpcnt = $gridcount;
         $gridcount = scalar @cpresult;
+        scan_guest_status(@cpresult);
     } elsif ($disp eq "indicate") {
 #        local $/ = ' ';
         my @cpresult = `vmcp $cmdline`;
@@ -664,6 +675,19 @@ sub tweet {
         die join(' ', "Error tweeting $text $hashtag",
                       $_->code, $_->message, $_->error);
     };
+}
+
+sub scan_guest_status {
+	my @guestlist = @_;
+	
+	foreach my $guest (@guestlist) {
+		$guest =~ s/^\s+|\s+$//g;
+		$gueststatus->{"$guest"} = 'logged on' if (!defined $gueststatus->{"$guest"});
+		`ping -c1 $guest`;
+		if ($? == 0 ) {
+			$gueststatus->{"$guest"} = 'active';
+		}
+	}
 }
 
 #### #!/usr/bin/perl
