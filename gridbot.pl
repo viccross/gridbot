@@ -703,10 +703,12 @@ sub scan_guest_status {
 	
 	foreach my $guest (@guestlist) {
 		$guest =~ s/^\s+|\s+$//g;
-		$gueststatus->{"$guest"} = 'logged on' if (!defined $gueststatus->{"$guest"});
-		`ping -c1 $guest`;
-		if ($? == 0 ) {
-			$gueststatus->{"$guest"} = 'active';
+		if (!defined $gueststatus->{"$guest"}) {
+			$gueststatus->{"$guest"} = 'logged on';
+			`ping -c1 $guest`;
+			if ($? == 0 ) {
+				$gueststatus->{"$guest"} = 'active';
+			}
 		}
 	}
 	return;
