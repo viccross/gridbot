@@ -6,6 +6,7 @@
 
 use strict;
 use warnings;
+use Switch;
 use POE qw(Component::IRC);
 use POE qw(Component::JobQueue);
 use Net::Twitter::Lite::WithAPIv1_1;
@@ -98,6 +99,13 @@ POE::Component::JobQueue->spawn
   ( Alias       => 'cattle',
     WorkerLimit => 1,
     Worker      => \&pop_cattle,
+    Passive     => {},
+  );
+  
+POE::Component::JobQueue->spawn
+  ( Alias       => 'action',
+    WorkerLimit => 1,
+    Worker      => \&pop_action,
     Passive     => {},
   );
 
@@ -361,7 +369,7 @@ sub startgrp {
     my ($nick, $cage, $rack, $group) = @_;
 
     foreach my $x (@grpsufx) {
-      $poe_kernel->post('command', 'enqueue', '', "XAUTOLOG GN2C$cage$rack$group$x", "$nick", $maindelay);
+      $poe_kernel->post('command', 'enqueue', '', "XAUTOLOG GN2C$cage$rack$group$x", "$nick");
 #      $irc->yield( privmsg => @channels[0] => "XAUTOLOG GN2C$cage$rack$group$x");
     }
     return;
@@ -379,7 +387,7 @@ sub stopgrp {
     my ($nick, $cage, $rack, $group) = @_;
 
     foreach my $x (@grpsufx) {
-      $poe_kernel->post('command', 'enqueue', '', "SIGNAL SHUTDOWN GN2C$cage$rack$group$x WITHIN 30", "$nick", $maindelay);
+      $poe_kernel->post('command', 'enqueue', '', "SIGNAL SHUTDOWN GN2C$cage$rack$group$x WITHIN 30", "$nick");
     }
     return;
 }
@@ -413,14 +421,14 @@ sub dropgrp {
 }
 
 sub pop_cmd {
-    my ($postback, $cmdline, $nick, $delay) = @_;
+    my ($postback, $cmdline, $nick) = @_;
 
     POE::Session->create (
       inline_states => {
         _start      => \&run_cmd,
-	cmd_clr     => \&cmd_clr,
+        cmd_clr     => \&cmd_clr,
       },
-      args => [ "$cmdline", "$nick", $delay ],
+      args => [ "$cmdline", "$nick" ],
     );
     return;
 }
@@ -430,11 +438,11 @@ sub cmd_clr {
 }
 
 sub run_cmd {
-    my ($cmdline, $nick, $delay) = @_[ARG0 .. ARG2];
+    my ($cmdline, $nick) = @_[ARG0 .. ARG1];
 #    $irc->yield( privmsg => $nick => "Issuing $cmdline");
 #    $irc->yield( privmsg => $channel => "Issuing $cmdline for $nick" );
     $poe_kernel->post('vmcp', 'enqueue', '', "$cmdline", "$nick", "irc");
-    $poe_kernel->delay(cmd_clr => $delay);
+    $poe_kernel->delay(cmd_clr => $maindelay);
     return;
 }
 
@@ -478,11 +486,13 @@ sub run_vmcp {
     } elsif ($disp eq "irc") {  
         my @cpresult = `vmcp $cmdline`;
         my $rc = $?;
-        foreach (@cpresult) {
-            $irc->yield( privmsg => $nick => "$_" );
-        }
-        if ( $rc > 0 ) {
-            $irc->yield( ctcp => $nick => "ACTION saw exit status of $rc on that command" );
+        if ( $nick ne "" ) {
+        	foreach (@cpresult) {
+            	$irc->yield( privmsg => $nick => "$_" );
+        	}
+        	if ( $rc > 0 ) {
+            	$irc->yield( ctcp => $nick => "ACTION saw exit status of $rc on that command" );
+        	}
         }
     }
     return;
@@ -536,6 +546,7 @@ sub run_smapi {
 sub update_stats {
     $poe_kernel->post('vmcp', 'enqueue', '', "Q N", "", "gridcount");
     $poe_kernel->post('vmcp', 'enqueue', '', "IND", "", "indicate");
+    $poe_kernel->post('action', 'enqueue', '');
 
     $poe_kernel->delay(topic_stats => 5);
 
@@ -675,6 +686,7 @@ sub tweet {
         die join(' ', "Error tweeting $text $hashtag",
                       $_->code, $_->message, $_->error);
     };
+    return;
 }
 
 sub scan_guest_status {
@@ -688,6 +700,63 @@ sub scan_guest_status {
 			$gueststatus->{"$guest"} = 'active';
 		}
 	}
+	return;
+}
+
+sub pop_action {
+    my ($postback) = @_;
+
+    POE::Session->create (
+      inline_states => {
+        _start      => \&action_guest_status,
+#	cmd_clr     => \&cmd_clr,
+      },
+      args => [ ],
+    );
+    return;
+}
+
+sub action_guest_status {
+	for my $guest ( keys %$gueststatus ) {
+		my $status = $gueststatus->{ $guest };
+		print "$guest is $status: ";
+		switch ($status) {
+			case "active" {
+				`ping -c1 $guest`;
+				if ($? != 0) {
+					$gueststatus->{ $guest }='recycling';
+					$poe_kernel->post('command', 'enqueue', '', "SIGNAL SHUTDOWN $guest WITHIN 30", "");
+					print "problem ping, set to recycle.\n";
+				} else { print "okay.\n"; }
+			}
+			case "activating" {
+				`ping -c1 $guest`;
+				if ($? == 0) {
+					$gueststatus->{ $guest }='active';
+					print "marking active\n";
+				} else { print "\n"; }
+			}
+			case "deactivating" {
+				my $cmdout = `smcli isq -T $guest -H IUCV`;
+				$cmdout =~ s/^\s+|\s+$//g;
+				if ("$cmdout" ne "$guest") {
+					$gueststatus->{ $guest }='down';
+					print "marking as down.\n";
+				} else { print "\n"; }
+			}
+			case "activate" {
+				$poe_kernel->post('command', 'enqueue', '', "XAUTOLOG $guest", "");
+				$gueststatus->{$guest}='activating';
+				print "issued command, marking as activating.\n";
+			}	 
+			case "deactivate" {
+				$poe_kernel->post('command', 'enqueue', '', "SIGNAL SHUTDOWN $guest WITHIN 30", "");
+				$gueststatus->{$guest}='deactivating';
+				print "issued command, marking as deactivating.\n";
+			}	 
+		}
+	}
+	return;
 }
 
 #### #!/usr/bin/perl
