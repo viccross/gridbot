@@ -13,7 +13,7 @@ use Try::Tiny;
 
 my ($revision) = '$Revision$' =~ /\$Revision: (.+) \$/;
 my $pidfile  = '/var/run/gridbot.pid';
-my $nickname = 'gridBot';
+my $nickname = 'gridBot-test';
 my $password = 'gridBotTObDIRG';
 my $ircname  = 'Management of the Cloning Grid';
 my $server   = 'zgn2c001.z.mel.stg.ibm';
@@ -39,23 +39,23 @@ my $cattledelay = 0;
 
 # Daemonise, maximum warp, engage
 use POSIX;
-POSIX::setsid or die "setsid: $!";
-my $pid = fork ();
-if ($pid < 0) {
-    die "fork: $!";
-} elsif ($pid) {
-    open PIDFILE, ">$pidfile" or die "can't open $pidfile: $!\n";
-    print PIDFILE $pid;
-    close PIDFILE;
-    exit 0;
-}
-chdir "/";
-umask 0;
-foreach (0 .. (POSIX::sysconf (&POSIX::_SC_OPEN_MAX) || 1024))
-    { POSIX::close $_ }
-open (STDIN, "</dev/null");
-open (STDOUT, ">/dev/null");
-open (STDERR, ">&STDOUT");
+#POSIX::setsid or die "setsid: $!";
+#my $pid = fork ();
+#if ($pid < 0) {
+#    die "fork: $!";
+#} elsif ($pid) {
+#    open PIDFILE, ">$pidfile" or die "can't open $pidfile: $!\n";
+#    print PIDFILE $pid;
+#    close PIDFILE;
+#    exit 0;
+#}
+#chdir "/";
+#umask 0;
+#foreach (0 .. (POSIX::sysconf (&POSIX::_SC_OPEN_MAX) || 1024))
+#    { POSIX::close $_ }
+#open (STDIN, "</dev/null");
+#open (STDOUT, ">/dev/null");
+#open (STDERR, ">&STDOUT");
 
 # We create a new PoCo-IRC object
 my $irc = POE::Component::IRC->spawn(
