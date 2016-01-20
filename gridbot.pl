@@ -13,7 +13,7 @@ use Try::Tiny;
 
 my ($revision) = '$Revision$' =~ /\$Revision: (.+) \$/;
 my $pidfile  = '/var/run/gridbot.pid';
-my $nickname = 'gridBot-test';
+my $nickname = 'testBot';
 my $password = 'gridBotTObDIRG';
 my $ircname  = 'Management of the Cloning Grid';
 my $server   = 'zgn2c001.z.mel.stg.ibm';
