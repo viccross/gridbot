@@ -221,22 +221,21 @@ sub process {
     if ( my ($cage, $rack, $group) = $what =~ /^grpstat (.) (.) (.)/ ) {
         my $dest = ( $pubpriv eq 'priv' ) ? $nick : $channel;
         $irc->yield( privmsg => $channel => "Finding status of cage $cage, rack $rack, group $group for $nick" );
-        my $status = "";
-        foreach my $x (@grpsufx) {
-        	switch ( $gueststatus->{ "GN2C$cage$rack$group$x" } ) {
-        		case "active"       { $status = $status . "a " }
-        		case "activating"   { $status = $status . "A " }
-        		case "deactivating" { $status = $status . "D " }
-        		case "down"         { $status = $status . "d " }
-        		case "recycling"    { $status = $status . "R " }
-        		case "deactivate"   { $status = $status . "K " }
-        		case "activate"     { $status = $status . "S " }
-        		else                { $status = $status . "u " }
-        	}
+#        my $status = get_group_status($cage, $rack, $group);
+        $irc->yield( privmsg => $dest => "GN2C$cage$rack$group" . "x status as follows:");
+        $irc->yield( privmsg => $dest => " 0 1 2 3 4 5 6 7 8 9 A B C D E F");
+        $irc->yield( privmsg => $dest => get_group_status($cage, $rack, $group) );
+    }
+    # Get a rack status
+    if ( my ($cage, $rack) = $what =~ /^rackstat (.) (.)/ ) {
+        my $dest = ( $pubpriv eq 'priv' ) ? $nick : $channel;
+        $irc->yield( privmsg => $channel => "Finding status of cage $cage, rack $rack for $nick" );
+       	$irc->yield( privmsg => $dest =>  "GN2C$cage$rack" . "gx status as follows:");
+       	$irc->yield( privmsg => $dest =>  " g 0 1 2 3 4 5 6 7 8 9 A B C D E F");
+        foreach my $group (@racksufx) {
+#        	my $status = get_group_status($cage, $rack, $group);
+        	$irc->yield( privmsg => $dest => " " . $group . get_group_status($cage, $rack, $group) );
         }
-        $irc->yield( privmsg => $dest =>  "GN2C$cage$rack$group" . "x status as follows:");
-        $irc->yield( privmsg => $dest =>  "0 1 2 3 4 5 6 7 8 9 A B C D E F");
-        $irc->yield( privmsg => $dest => $status );
     }
     # Set a guest status
     if ( my ($guest, $status) = $what =~ /^guestset (.+) (.+)/ ) {
@@ -304,6 +303,31 @@ sub process {
         $irc->yield( ctcp => $dest => "ACTION has a little squee at being noticed and appreciated");
     }
     return;
+}
+
+sub get_group_status {
+	my ($cage, $rack, $group) = @_;
+	my $status = "";
+	
+	foreach my $x (@grpsufx) {
+       	if ( defined $gueststatus->{ "GN2C$cage$rack$group$x" } ) {
+       		switch ( $gueststatus->{ "GN2C$cage$rack$group$x" } ) {
+      			case "active"       { $status = $status . " a" }
+       			case "activating"   { $status = $status . " S" }
+       			case "deactivating" { $status = $status . " D" }
+       			case "down"         { $status = $status . " d" }
+       			case "recycling"    { $status = $status . " R" }
+       			case "deactivate"   { $status = $status . " K" }
+       			case "activate"     { $status = $status . " A" }
+       			else                { $status = $status . " u" }
+       		}
+       	} else {
+    # Should do something here to see if the guest is actually defined...
+    # This is the main thread though, so maybe better break such action out.
+       		$status = $status . " -";
+       	}
+    }
+    return $status;
 }
 
 sub irc_join {
