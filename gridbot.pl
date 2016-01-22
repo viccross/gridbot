@@ -175,7 +175,8 @@ sub process {
         my $dest = ( $pubpriv eq 'priv' ) ? $nick : $channel;
         $irc->yield( privmsg => $dest => "gridBot beta0.2-r$revision usage:");
         $irc->yield( privmsg => $dest => "status             : Tells you about the grid");
-        $irc->yield( privmsg => $dest => "gueststat [guest]  : Tells you a specific clone");
+        $irc->yield( privmsg => $dest => "gueststat [guest]  : Tells you about a specific clone");
+        $irc->yield( privmsg => $dest => "grpstat [C R G]    : Tells you about a group");
         $irc->yield( privmsg => $dest => "guestset [gst] [s] : Sets status for a specific clone");
         $irc->yield( privmsg => $dest => "startcage [C]      : Starts a cage C=cage");
         $irc->yield( privmsg => $dest => "startrack [C R]    : Starts a rack C=cage, R=rack");
@@ -216,6 +217,27 @@ sub process {
         my $status = ( !defined $gueststatus->{ $guest } ) ? "unknown" : $gueststatus->{ $guest };
         $irc->yield( privmsg => $dest =>  "Clone $guest is $status");
     }
+    # Get a group status
+    if ( my ($cage, $rack, $group) = $what =~ /^grpstat (.) (.) (.)/ ) {
+        my $dest = ( $pubpriv eq 'priv' ) ? $nick : $channel;
+        $irc->yield( privmsg => $channel => "Finding status of cage $cage, rack $rack, group $group for $nick" );
+        my $status = "";
+        foreach my $x (@grpsufx) {
+        	switch ( $gueststatus->{ "GN2C$cage$rack$group$x" } ) {
+        		case "active"       { $status = $status . "a " }
+        		case "activating"   { $status = $status . "A " }
+        		case "deactivating" { $status = $status . "D " }
+        		case "down"         { $status = $status . "d " }
+        		case "recycling"    { $status = $status . "R " }
+        		case "deactivate"   { $status = $status . "K " }
+        		case "activate"     { $status = $status . "S " }
+        		else                { $status = $status . "u " }
+        	}
+        }
+        $irc->yield( privmsg => $dest =>  "GN2C$cage$rack$group" . "x status as follows:");
+        $irc->yield( privmsg => $dest =>  "0 1 2 3 4 5 6 7 8 9 A B C D E F");
+        $irc->yield( privmsg => $dest => $status );
+    }
     # Set a guest status
     if ( my ($guest, $status) = $what =~ /^guestset (.+) (.+)/ ) {
         my $dest = ( $pubpriv eq 'priv' ) ? $nick : $channel;
@@ -233,26 +255,26 @@ sub process {
     # start a group of servers
     if ( my ($cage, $rack, $group) = $what =~ /^startgrp (.) (.) (.)$/ ) {
         $irc->yield( privmsg => $channel => "$nick asked me to start cage $cage, rack $rack, group $group");
-	$irc->yield( ctcp => $channel => "ACTION puts that in the queue");
-	&startgrp($nick,$cage,$rack,$group);
+	    $irc->yield( ctcp => $channel => "ACTION puts that in the queue");
+	    &startgrp($nick,$cage,$rack,$group);
     }
     # stop a group of servers
     if ( my ($cage, $rack, $group) = $what =~ /^stopgrp (.) (.) (.)$/ ) {
         $irc->yield( privmsg => $channel => "$nick asked me to stop cage $cage, rack $rack, group $group");
-	$irc->yield( ctcp => $channel => "ACTION puts that in the queue");
-	&stopgrp($nick,$cage,$rack,$group);
+	    $irc->yield( ctcp => $channel => "ACTION puts that in the queue");
+	    &stopgrp($nick,$cage,$rack,$group);
     }
     # start a rack of servers
     if ( my ($cage, $rack) = $what =~ /^startrack (.) (.)$/ ) {
         $irc->yield( privmsg => $channel => "$nick asked me to start cage $cage, rack $rack");
-	$irc->yield( ctcp => $channel => "ACTION puts that in the queue");
-	&startrack($nick,$cage,$rack);
+	    $irc->yield( ctcp => $channel => "ACTION puts that in the queue");
+	    &startrack($nick,$cage,$rack);
     }
     # stop a rack of servers
     if ( my ($cage, $rack) = $what =~ /^stoprack (.) (.)$/ ) {
         $irc->yield( privmsg => $channel => "$nick asked me to stop cage $cage, rack $rack");
-	$irc->yield( ctcp => $channel => "ACTION puts that in the queue");
-	&stoprack($nick,$cage,$rack);
+	    $irc->yield( ctcp => $channel => "ACTION puts that in the queue");
+	    &stoprack($nick,$cage,$rack);
     }
     # make a group of servers
     if ( my ($cage, $rack, $group) = $what =~ /^makegrp (.) (.) (.)$/ ) {
@@ -263,8 +285,8 @@ sub process {
     # drop a group of servers
     if ( my ($cage, $rack, $group) = $what =~ /^dropgrp (.) (.) (.)$/ ) {
         $irc->yield( privmsg => $channel => "$nick asked me to remove cage $cage, rack $rack, group $group");
-	$irc->yield( ctcp => $channel => "ACTION puts that in the queue");
-	&dropgrp($nick,$cage,$rack,$group);
+        $irc->yield( ctcp => $channel => "ACTION puts that in the queue");
+        &dropgrp($nick,$cage,$rack,$group);
     }
     # get the grid status
     if ( $what =~ /^status/ ) {
