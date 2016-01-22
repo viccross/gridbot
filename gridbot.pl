@@ -177,6 +177,7 @@ sub process {
         $irc->yield( privmsg => $dest => "status             : Tells you about the grid");
         $irc->yield( privmsg => $dest => "gueststat [guest]  : Tells you about a specific clone");
         $irc->yield( privmsg => $dest => "grpstat [C R G]    : Tells you about a group");
+        $irc->yield( privmsg => $dest => "rackstat [C R]     : Tells you about a rack");
         $irc->yield( privmsg => $dest => "guestset [gst] [s] : Sets status for a specific clone");
         $irc->yield( privmsg => $dest => "startcage [C]      : Starts a cage C=cage");
         $irc->yield( privmsg => $dest => "startrack [C R]    : Starts a rack C=cage, R=rack");
@@ -315,16 +316,16 @@ sub get_group_status {
       			case "active"       { $status = $status . " a" }
        			case "activating"   { $status = $status . " S" }
        			case "deactivating" { $status = $status . " D" }
-       			case "down"         { $status = $status . " d" }
        			case "recycling"    { $status = $status . " R" }
        			case "deactivate"   { $status = $status . " K" }
        			case "activate"     { $status = $status . " A" }
        			else                { $status = $status . " u" }
        		}
        	} else {
-    # Should do something here to see if the guest is actually defined...
-    # This is the main thread though, so maybe better break such action out.
-       		$status = $status . " -";
+    # Should do something here to see if the guest is actually defined
+    # as we are only assuming that it does actually exist and is down.
+    # This is the main thread though, so maybe the assumption is okay.
+       		$status = $status . " d";
        	}
     }
     return $status;
@@ -798,7 +799,7 @@ sub action_guest_status {
 				my $cmdout = `smcli isq -T $guest -H IUCV`;
 				$cmdout =~ s/^\s+|\s+$//g;
 				if ("$cmdout" ne "$guest") {
-					$gueststatus->{ $guest }='down';
+					delete $gueststatus->{ $guest };
 					print "marking as down.\n";
 				} else { print "\n"; }
 			}
