@@ -222,7 +222,7 @@ sub process {
     if ( my ($cage, $rack, $group) = $what =~ /^grpstat (.) (.) (.)/ ) {
         my $dest = ( $pubpriv eq 'priv' ) ? $nick : $channel;
         $irc->yield( privmsg => $channel => "Finding status of cage $cage, rack $rack, group $group for $nick" );
-#        my $status = get_group_status($cage, $rack, $group);
+        $group =~ tr[a-z][A-Z];
         $irc->yield( privmsg => $dest => "GN2C$cage$rack$group" . "x status as follows:");
         $irc->yield( privmsg => $dest => " 0 1 2 3 4 5 6 7 8 9 A B C D E F");
         $irc->yield( privmsg => $dest => get_group_status($cage, $rack, $group) );
@@ -234,7 +234,6 @@ sub process {
        	$irc->yield( privmsg => $dest =>  "GN2C$cage$rack" . "gx status as follows:");
        	$irc->yield( privmsg => $dest =>  " g 0 1 2 3 4 5 6 7 8 9 A B C D E F");
         foreach my $group (@racksufx) {
-#        	my $status = get_group_status($cage, $rack, $group);
         	$irc->yield( privmsg => $dest => " " . $group . get_group_status($cage, $rack, $group) );
         }
     }
@@ -755,7 +754,7 @@ sub scan_guest_status {
 	foreach my $guest (@guestlist) {
 		$guest =~ s/^\s+|\s+$//g;
 		if (!defined $gueststatus->{"$guest"}) {
-			$gueststatus->{"$guest"} = 'logged on';
+			$gueststatus->{"$guest"} = 'activating';
 			`ping -c1 $guest`;
 			if ($? == 0 ) {
 				$gueststatus->{"$guest"} = 'active';
