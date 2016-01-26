@@ -6,6 +6,7 @@
 
 use strict;
 use warnings;
+use Switch;
 use POE qw(Component::IRC);
 use POE qw(Component::JobQueue);
 use Net::Twitter::Lite::WithAPIv1_1;
@@ -18,6 +19,7 @@ my $password = 'gridBotTObDIRG';
 my $ircname  = 'Management of the Cloning Grid';
 my $server   = 'zgn2c001.z.mel.stg.ibm';
 
+my $gueststatus = {};
 my @channels = ('#bodsz-cloning');
 
 my $TWITTER_CONSUMER_KEY = "u8cGtaZRPH9ROZUf0HZgEOtS7";
@@ -99,6 +101,13 @@ POE::Component::JobQueue->spawn
     Worker      => \&pop_cattle,
     Passive     => {},
   );
+  
+POE::Component::JobQueue->spawn
+  ( Alias       => 'action',
+    WorkerLimit => 1,
+    Worker      => \&pop_action,
+    Passive     => {},
+  );
 
 POE::Session->create(
     inline_states   => {
@@ -166,6 +175,10 @@ sub process {
         my $dest = ( $pubpriv eq 'priv' ) ? $nick : $channel;
         $irc->yield( privmsg => $dest => "gridBot beta0.2-r$revision usage:");
         $irc->yield( privmsg => $dest => "status             : Tells you about the grid");
+        $irc->yield( privmsg => $dest => "gueststat [guest]  : Tells you about a specific clone");
+        $irc->yield( privmsg => $dest => "grpstat [C R G]    : Tells you about a group");
+        $irc->yield( privmsg => $dest => "rackstat [C R]     : Tells you about a rack");
+        $irc->yield( privmsg => $dest => "guestset [gst] [s] : Sets status for a specific clone");
         $irc->yield( privmsg => $dest => "startcage [C]      : Starts a cage C=cage");
         $irc->yield( privmsg => $dest => "startrack [C R]    : Starts a rack C=cage, R=rack");
         $irc->yield( privmsg => $dest => "startgrp [C R G]   : Starts a group C=cage, R=rack, G=group");
@@ -197,6 +210,41 @@ sub process {
         $irc->yield( privmsg => $channel => "Issuing SMAPI $smapicommand for $nick" );
         $poe_kernel->post('smapi', 'enqueue', '', "$smapicommand", "$nick", "irc");
     }
+    # Get a guest status
+    if ( my ($guest) = $what =~ /^gueststat (.+)/ ) {
+        my $dest = ( $pubpriv eq 'priv' ) ? $nick : $channel;
+        $guest =~ tr[a-z][A-Z];
+        $irc->yield( privmsg => $channel => "Finding status of $guest for $nick" );
+        my $status = ( !defined $gueststatus->{ $guest } ) ? "unknown" : $gueststatus->{ $guest };
+        $irc->yield( privmsg => $dest =>  "Clone $guest is $status");
+    }
+    # Get a group status
+    if ( my ($cage, $rack, $group) = $what =~ /^grpstat (.) (.) (.)/ ) {
+        my $dest = ( $pubpriv eq 'priv' ) ? $nick : $channel;
+        $irc->yield( privmsg => $channel => "Finding status of cage $cage, rack $rack, group $group for $nick" );
+        $group =~ tr[a-z][A-Z];
+        $irc->yield( privmsg => $dest => "GN2C$cage$rack$group" . "x status as follows:");
+        $irc->yield( privmsg => $dest => " 0 1 2 3 4 5 6 7 8 9 A B C D E F");
+        $irc->yield( privmsg => $dest => get_group_status($cage, $rack, $group) );
+    }
+    # Get a rack status
+    if ( my ($cage, $rack) = $what =~ /^rackstat (.) (.)/ ) {
+        my $dest = ( $pubpriv eq 'priv' ) ? $nick : $channel;
+        $irc->yield( privmsg => $channel => "Finding status of cage $cage, rack $rack for $nick" );
+       	$irc->yield( privmsg => $dest =>  "GN2C$cage$rack" . "gx status as follows:");
+       	$irc->yield( privmsg => $dest =>  " g 0 1 2 3 4 5 6 7 8 9 A B C D E F");
+        foreach my $group (@racksufx) {
+        	$irc->yield( privmsg => $dest => " " . $group . get_group_status($cage, $rack, $group) );
+        }
+    }
+    # Set a guest status
+    if ( my ($guest, $status) = $what =~ /^guestset (.+) (.+)/ ) {
+        my $dest = ( $pubpriv eq 'priv' ) ? $nick : $channel;
+        $guest =~ tr[a-z][A-Z];
+        $irc->yield( privmsg => $channel => "Setting status of $guest to $status for $nick" );
+        $gueststatus->{ $guest } = $status;
+        $irc->yield( privmsg => $dest =>  "Clone $guest is now set to $status");
+    }
     # Tweet the grid status
     if ( my ($tweethashtag) = $what =~ /^tweetstats (.+)/ ) {
         my $time = strftime "%a %e %H:%M", localtime();
@@ -206,26 +254,26 @@ sub process {
     # start a group of servers
     if ( my ($cage, $rack, $group) = $what =~ /^startgrp (.) (.) (.)$/ ) {
         $irc->yield( privmsg => $channel => "$nick asked me to start cage $cage, rack $rack, group $group");
-	$irc->yield( ctcp => $channel => "ACTION puts that in the queue");
-	&startgrp($nick,$cage,$rack,$group);
+	    $irc->yield( ctcp => $channel => "ACTION puts that in the queue");
+	    &startgrp($nick,$cage,$rack,$group);
     }
     # stop a group of servers
     if ( my ($cage, $rack, $group) = $what =~ /^stopgrp (.) (.) (.)$/ ) {
         $irc->yield( privmsg => $channel => "$nick asked me to stop cage $cage, rack $rack, group $group");
-	$irc->yield( ctcp => $channel => "ACTION puts that in the queue");
-	&stopgrp($nick,$cage,$rack,$group);
+	    $irc->yield( ctcp => $channel => "ACTION puts that in the queue");
+	    &stopgrp($nick,$cage,$rack,$group);
     }
     # start a rack of servers
     if ( my ($cage, $rack) = $what =~ /^startrack (.) (.)$/ ) {
         $irc->yield( privmsg => $channel => "$nick asked me to start cage $cage, rack $rack");
-	$irc->yield( ctcp => $channel => "ACTION puts that in the queue");
-	&startrack($nick,$cage,$rack);
+	    $irc->yield( ctcp => $channel => "ACTION puts that in the queue");
+	    &startrack($nick,$cage,$rack);
     }
     # stop a rack of servers
     if ( my ($cage, $rack) = $what =~ /^stoprack (.) (.)$/ ) {
         $irc->yield( privmsg => $channel => "$nick asked me to stop cage $cage, rack $rack");
-	$irc->yield( ctcp => $channel => "ACTION puts that in the queue");
-	&stoprack($nick,$cage,$rack);
+	    $irc->yield( ctcp => $channel => "ACTION puts that in the queue");
+	    &stoprack($nick,$cage,$rack);
     }
     # make a group of servers
     if ( my ($cage, $rack, $group) = $what =~ /^makegrp (.) (.) (.)$/ ) {
@@ -236,8 +284,8 @@ sub process {
     # drop a group of servers
     if ( my ($cage, $rack, $group) = $what =~ /^dropgrp (.) (.) (.)$/ ) {
         $irc->yield( privmsg => $channel => "$nick asked me to remove cage $cage, rack $rack, group $group");
-	$irc->yield( ctcp => $channel => "ACTION puts that in the queue");
-	&dropgrp($nick,$cage,$rack,$group);
+        $irc->yield( ctcp => $channel => "ACTION puts that in the queue");
+        &dropgrp($nick,$cage,$rack,$group);
     }
     # get the grid status
     if ( $what =~ /^status/ ) {
@@ -255,6 +303,32 @@ sub process {
         $irc->yield( ctcp => $dest => "ACTION has a little squee at being noticed and appreciated");
     }
     return;
+}
+
+sub get_group_status {
+	my ($cage, $rack, $group) = @_;
+	my $status = "";
+	
+	foreach my $x (@grpsufx) {
+       	if ( defined $gueststatus->{ "GN2C$cage$rack$group$x" } ) {
+       		switch ( $gueststatus->{ "GN2C$cage$rack$group$x" } ) {
+      			case "active"       { $status = $status . " a" }
+       			case "activating"   { $status = $status . " S" }
+       			case "deactivating" { $status = $status . " D" }
+       			case "recycling"    { $status = $status . " R" }
+       			case "deactivate"   { $status = $status . " K" }
+       			case "activate"     { $status = $status . " A" }
+       			else                { $status = $status . " u" }
+       		}
+       	} else {
+    # Should do something here to see if the guest is actually defined
+    # as we are only assuming that it does actually exist and is down.
+    # This is the main thread though, so maybe the assumption is okay
+    # since we don't want to be throwing needless commands at SMAPI.
+       		$status = $status . " d";
+       	}
+    }
+    return $status;
 }
 
 sub irc_join {
@@ -351,7 +425,7 @@ sub startgrp {
     my ($nick, $cage, $rack, $group) = @_;
 
     foreach my $x (@grpsufx) {
-      $poe_kernel->post('command', 'enqueue', '', "XAUTOLOG GN2C$cage$rack$group$x", "$nick", $maindelay);
+      $poe_kernel->post('command', 'enqueue', '', "XAUTOLOG GN2C$cage$rack$group$x", "$nick");
 #      $irc->yield( privmsg => @channels[0] => "XAUTOLOG GN2C$cage$rack$group$x");
     }
     return;
@@ -369,7 +443,7 @@ sub stopgrp {
     my ($nick, $cage, $rack, $group) = @_;
 
     foreach my $x (@grpsufx) {
-      $poe_kernel->post('command', 'enqueue', '', "SIGNAL SHUTDOWN GN2C$cage$rack$group$x WITHIN 30", "$nick", $maindelay);
+      $poe_kernel->post('command', 'enqueue', '', "SIGNAL SHUTDOWN GN2C$cage$rack$group$x WITHIN 30", "$nick");
     }
     return;
 }
@@ -403,14 +477,14 @@ sub dropgrp {
 }
 
 sub pop_cmd {
-    my ($postback, $cmdline, $nick, $delay) = @_;
+    my ($postback, $cmdline, $nick) = @_;
 
     POE::Session->create (
       inline_states => {
         _start      => \&run_cmd,
-	cmd_clr     => \&cmd_clr,
+        cmd_clr     => \&cmd_clr,
       },
-      args => [ "$cmdline", "$nick", $delay ],
+      args => [ "$cmdline", "$nick" ],
     );
     return;
 }
@@ -420,11 +494,11 @@ sub cmd_clr {
 }
 
 sub run_cmd {
-    my ($cmdline, $nick, $delay) = @_[ARG0 .. ARG2];
+    my ($cmdline, $nick) = @_[ARG0 .. ARG1];
 #    $irc->yield( privmsg => $nick => "Issuing $cmdline");
 #    $irc->yield( privmsg => $channel => "Issuing $cmdline for $nick" );
     $poe_kernel->post('vmcp', 'enqueue', '', "$cmdline", "$nick", "irc");
-    $poe_kernel->delay(cmd_clr => $delay);
+    $poe_kernel->delay(cmd_clr => $maindelay);
     return;
 }
 
@@ -456,6 +530,10 @@ sub run_vmcp {
         @cpresult = grep { $_ =~ /^GN2C/ } @cpresult;
         $gridpcnt = $gridcount;
         $gridcount = scalar @cpresult;
+        if ( $gridcount != keys (%$gueststatus) ) {
+        	print "Scanning for new guests.\n";
+        	scan_guest_status(@cpresult);
+        }
     } elsif ($disp eq "indicate") {
 #        local $/ = ' ';
         my @cpresult = `vmcp $cmdline`;
@@ -467,11 +545,13 @@ sub run_vmcp {
     } elsif ($disp eq "irc") {  
         my @cpresult = `vmcp $cmdline`;
         my $rc = $?;
-        foreach (@cpresult) {
-            $irc->yield( privmsg => $nick => "$_" );
-        }
-        if ( $rc > 0 ) {
-            $irc->yield( ctcp => $nick => "ACTION saw exit status of $rc on that command" );
+        if ( $nick ne "" ) {
+        	foreach (@cpresult) {
+            	$irc->yield( privmsg => $nick => "$_" );
+        	}
+        	if ( $rc > 0 ) {
+            	$irc->yield( ctcp => $nick => "ACTION saw exit status of $rc on that command" );
+        	}
         }
     }
     return;
@@ -525,6 +605,7 @@ sub run_smapi {
 sub update_stats {
     $poe_kernel->post('vmcp', 'enqueue', '', "Q N", "", "gridcount");
     $poe_kernel->post('vmcp', 'enqueue', '', "IND", "", "indicate");
+    $poe_kernel->post('action', 'enqueue', '');
 
     $poe_kernel->delay(topic_stats => 5);
 
@@ -664,6 +745,96 @@ sub tweet {
         die join(' ', "Error tweeting $text $hashtag",
                       $_->code, $_->message, $_->error);
     };
+    return;
+}
+
+sub scan_guest_status {
+	my @guestlist = @_;
+	
+	foreach my $guest (@guestlist) {
+		$guest =~ s/^\s+|\s+$//g;
+		if (!defined $gueststatus->{"$guest"}) {
+			$gueststatus->{"$guest"} = 'activating';
+			`ping -c1 $guest`;
+			if ($? == 0 ) {
+				$gueststatus->{"$guest"} = 'active';
+			}
+		}
+	}
+	return;
+}
+
+sub pop_action {
+    my ($postback) = @_;
+
+    POE::Session->create (
+      inline_states => {
+        _start      => \&action_guest_status,
+#	cmd_clr     => \&cmd_clr,
+      },
+      args => [ ],
+    );
+    return;
+}
+
+sub action_guest_status {
+	for my $guest ( keys %$gueststatus ) {
+		my $status = $gueststatus->{ $guest };
+		switch ($status) {
+			case "active" {
+				`ping -c1 $guest`;
+				if ($? != 0) {
+					$gueststatus->{ $guest }='recycling';
+					$poe_kernel->post('command', 'enqueue', '', "SIGNAL SHUTDOWN $guest WITHIN 30", "");
+					print "$guest problem ping, set to recycle.\n";
+				}
+			}
+			case "activating" {
+				print "$guest is $status: ";
+				`ping -c1 $guest`;
+				if ($? == 0) {
+					$gueststatus->{ $guest }='active';
+					print "marking active\n";
+				} else { print "\n"; }
+			}
+			case "deactivating" {
+				print "$guest is $status: ";
+				my $cmdout = `smcli isq -T $guest -H IUCV`;
+				$cmdout =~ s/^\s+|\s+$//g;
+				if ("$cmdout" ne "$guest") {
+					delete $gueststatus->{ $guest };
+					print "marking as down.\n";
+				} else { print "\n"; }
+			}
+			case "activate" {
+				print "$guest is $status: ";
+				$poe_kernel->post('command', 'enqueue', '', "XAUTOLOG $guest", "");
+				$gueststatus->{$guest}='activating';
+				print "issued command, marking as activating.\n";
+			}	 
+			case "deactivate" {
+				print "$guest is $status: ";
+				$poe_kernel->post('command', 'enqueue', '', "SIGNAL SHUTDOWN $guest WITHIN 30", "");
+				$gueststatus->{$guest}='deactivating';
+				print "issued command, marking as deactivating.\n";
+			}
+			case "recycling" {
+				print "$guest is $status: ";
+				# is it down yet?
+				my $cmdout = `smcli isq -T $guest -H IUCV`;
+				$cmdout =~ s/^\s+|\s+$//g;
+				if ("$cmdout" ne "$guest") {
+					$gueststatus->{ $guest }='activating';
+					$poe_kernel->post('command', 'enqueue', '', "XAUTOLOG $guest", "");
+					print "came down, restarted, marked as activating.\n"
+				} else { print "still waiting to come down.\n"};
+			}
+			else {
+				print "$guest: unknown status $status.\n";
+			}
+		}
+	}
+	return;
 }
 
 #### #!/usr/bin/perl
