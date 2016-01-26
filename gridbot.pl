@@ -324,7 +324,8 @@ sub get_group_status {
        	} else {
     # Should do something here to see if the guest is actually defined
     # as we are only assuming that it does actually exist and is down.
-    # This is the main thread though, so maybe the assumption is okay.
+    # This is the main thread though, so maybe the assumption is okay
+    # since we don't want to be throwing needless commands at SMAPI.
        		$status = $status . " d";
        	}
     }
@@ -530,7 +531,10 @@ sub run_vmcp {
         @cpresult = grep { $_ =~ /^GN2C/ } @cpresult;
         $gridpcnt = $gridcount;
         $gridcount = scalar @cpresult;
-        scan_guest_status(@cpresult);
+        if ( $gridcount != keys (%$gueststatus) ) {
+        	print "Scanning for new guests.\n";
+        	scan_guest_status(@cpresult);
+        }
     } elsif ($disp eq "indicate") {
 #        local $/ = ' ';
         my @cpresult = `vmcp $cmdline`;
