@@ -166,9 +166,11 @@ sub irc_msg {
 
 sub process {
     my ($nick,$channel,$what,$pubpriv) = @_;
+    my $cmdok = "no";
     if ( my ($rot13) = $what =~ /^rot13 (.+)/ ) {
         $rot13 =~ tr[a-zA-Z][n-za-mN-ZA-M];
         $irc->yield( privmsg => $channel => "$nick: $rot13" );
+        $cmdok="ok";
     }
     # show usage info
     if ( $what =~ /^usage/ ) {
@@ -189,6 +191,7 @@ sub process {
         $irc->yield( privmsg => $dest => "tweetstats #[hash] : Tweet grid stats, add a whimsical hashtag");
         $irc->yield( privmsg => $dest => "vmcp [command]     : Issue a CP command");
         $irc->yield( privmsg => $dest => "smapi [command]    : Issue a SMAPI command");
+        $cmdok="ok";
     }
     # Issue a CP command
     if ( my ($cpcommand) = $what =~ /^vmcp (.+)/ ) {
@@ -203,12 +206,14 @@ sub process {
 #	if ( $rc > 0 ) {
 #          $irc->yield( ctcp => $channel => "ACTION saw exit status of $rc on that command $nick" );
 #	}
+        $cmdok="ok";
     }
     # Issue a SMAPI command
     if ( my ($smapicommand) = $what =~ /^smapi (.+)/ ) {
 #        $smapicommand =~ tr[a-z][A-Z];
         $irc->yield( privmsg => $channel => "Issuing SMAPI $smapicommand for $nick" );
         $poe_kernel->post('smapi', 'enqueue', '', "$smapicommand", "$nick", "irc");
+        $cmdok="ok";
     }
     # Get a guest status
     if ( my ($guest) = $what =~ /^gueststat (.+)/ ) {
@@ -217,6 +222,7 @@ sub process {
         $irc->yield( privmsg => $channel => "Finding status of $guest for $nick" );
         my $status = ( !defined $gueststatus->{ $guest } ) ? "unknown" : $gueststatus->{ $guest };
         $irc->yield( privmsg => $dest =>  "Clone $guest is $status");
+        $cmdok="ok";
     }
     # Get a group status
     if ( my ($cage, $rack, $group) = $what =~ /^grpstat (.) (.) (.)/ ) {
@@ -226,6 +232,7 @@ sub process {
         $irc->yield( privmsg => $dest => "GN2C$cage$rack$group" . "x status as follows:");
         $irc->yield( privmsg => $dest => " 0 1 2 3 4 5 6 7 8 9 A B C D E F");
         $irc->yield( privmsg => $dest => get_group_status($cage, $rack, $group) );
+        $cmdok="ok";
     }
     # Get a rack status
     if ( my ($cage, $rack) = $what =~ /^rackstat (.) (.)/ ) {
@@ -236,6 +243,7 @@ sub process {
         foreach my $group (@racksufx) {
         	$irc->yield( privmsg => $dest => " " . $group . get_group_status($cage, $rack, $group) );
         }
+        $cmdok="ok";
     }
     # Set a guest status
     if ( my ($guest, $status) = $what =~ /^guestset (.+) (.+)/ ) {
@@ -244,48 +252,56 @@ sub process {
         $irc->yield( privmsg => $channel => "Setting status of $guest to $status for $nick" );
         $gueststatus->{ $guest } = $status;
         $irc->yield( privmsg => $dest =>  "Clone $guest is now set to $status");
+        $cmdok="ok";
     }
     # Tweet the grid status
     if ( my ($tweethashtag) = $what =~ /^tweetstats (.+)/ ) {
         my $time = strftime "%a %e %H:%M", localtime();
         try { &tweet("Grid status at $time: $gridcount guests active, avg CPU $avgproc%, Paging $paging/sec.","$tweethashtag"); }
-	catch { $irc->yield( ctcp => $channels[0] => "ACTION just tried to tweet and it failed: $_." ); };
+		catch { $irc->yield( ctcp => $channels[0] => "ACTION just tried to tweet and it failed: $_." ); };
+        $cmdok="ok";
     }
     # start a group of servers
     if ( my ($cage, $rack, $group) = $what =~ /^startgrp (.) (.) (.)$/ ) {
         $irc->yield( privmsg => $channel => "$nick asked me to start cage $cage, rack $rack, group $group");
 	    $irc->yield( ctcp => $channel => "ACTION puts that in the queue");
 	    &startgrp($nick,$cage,$rack,$group);
+        $cmdok="ok";
     }
     # stop a group of servers
     if ( my ($cage, $rack, $group) = $what =~ /^stopgrp (.) (.) (.)$/ ) {
         $irc->yield( privmsg => $channel => "$nick asked me to stop cage $cage, rack $rack, group $group");
 	    $irc->yield( ctcp => $channel => "ACTION puts that in the queue");
 	    &stopgrp($nick,$cage,$rack,$group);
+        $cmdok="ok";
     }
     # start a rack of servers
     if ( my ($cage, $rack) = $what =~ /^startrack (.) (.)$/ ) {
         $irc->yield( privmsg => $channel => "$nick asked me to start cage $cage, rack $rack");
 	    $irc->yield( ctcp => $channel => "ACTION puts that in the queue");
 	    &startrack($nick,$cage,$rack);
+        $cmdok="ok";
     }
     # stop a rack of servers
     if ( my ($cage, $rack) = $what =~ /^stoprack (.) (.)$/ ) {
         $irc->yield( privmsg => $channel => "$nick asked me to stop cage $cage, rack $rack");
 	    $irc->yield( ctcp => $channel => "ACTION puts that in the queue");
 	    &stoprack($nick,$cage,$rack);
+        $cmdok="ok";
     }
     # make a group of servers
     if ( my ($cage, $rack, $group) = $what =~ /^makegrp (.) (.) (.)$/ ) {
         $irc->yield( privmsg => $channel => "$nick asked me to create cage $cage, rack $rack, group $group");
         $irc->yield( ctcp => $channel => "ACTION puts that in the queue");
         &makegrp($nick,$cage,$rack,$group);
+        $cmdok="ok";
     }
     # drop a group of servers
     if ( my ($cage, $rack, $group) = $what =~ /^dropgrp (.) (.) (.)$/ ) {
         $irc->yield( privmsg => $channel => "$nick asked me to remove cage $cage, rack $rack, group $group");
         $irc->yield( ctcp => $channel => "ACTION puts that in the queue");
         &dropgrp($nick,$cage,$rack,$group);
+        $cmdok="ok";
     }
     # get the grid status
     if ( $what =~ /^status/ ) {
@@ -295,12 +311,18 @@ sub process {
 	    $irc->yield( privmsg => $dest => "AvgProc: $avgproc% Paging: $paging");
 	    $irc->yield( privmsg => $dest => "Current command delay: $maindelay sec");
 #	    $irc->yield( privmsg => $dest => "Is dirmBot logged on: $dirmBot");
+        $cmdok="ok";
     }
     # get the bot status
     if ( $what =~ /^botstat/ ) {
         my $dest = ( $pubpriv eq 'priv' ) ? $nick : $channel;
         $irc->yield( privmsg => $dest => "I'm super, thanks for asking!");
         $irc->yield( ctcp => $dest => "ACTION has a little squee at being noticed and appreciated");
+        $cmdok="ok";
+    }
+    if ( $cmdok eq "no" ) {
+        my $dest = ( $pubpriv eq 'priv' ) ? $nick : $channel;
+        $irc->yield( privmsg => $dest => "I'm sorry, I don't know how to do $what.");
     }
     return;
 }
