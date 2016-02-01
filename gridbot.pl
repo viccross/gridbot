@@ -555,7 +555,7 @@ sub run_vmcp {
         $gridcount = scalar @cpresult;
         
         # Write out guest count to the HTTP directory
-        my $guestmax = (int($gridcount/500) + 1) * 500; 
+        my $guestmax = (int($gridcount/500) + 2) * 500; 
     	open HTTPFILE, ">$httpdir/count.txt" or die "can't open guest count file in HTTP directory: $!\n";
     	print HTTPFILE "value: $gridcount, max: $guestmax, ";
     	close HTTPFILE;
@@ -573,14 +573,27 @@ sub run_vmcp {
         ($paging) = $cpresult[2] =~ /PAGING-(.+)\/SEC/;
         $maindelay = int(($avgproc/100)*3) + int($paging/1000)**2 + int($gridcount/500) + 2;
         
+        my @storcmd = `vmcp q stor`;
+        my ($storage) = $storcmd[0] =~ /STORAGE = (.+) CONF/;
+        my $stornum = "";
+        if ( ($stornum) = $storage =~ /(.+)G/ ) {
+        	$stornum *= 1024;
+        } else {
+        	($stornum) = $storage =~ /(.+)M/;
+        }
+        
         # Write out the graph values to HTTP directory
-        my $pagemax = (int($paging/1000) +1 ) * 1000;
+        my $pagemax = (int($paging/1000) + 1) * 1000;
+        my $stormax = (int($stornum/4096) + 1) * 4096;
         open HTTPFILE, ">$httpdir/paging.txt" or die "can't open paging rate file in HTTP directory: $!\n";
     	print HTTPFILE "value: $paging, max: $pagemax, ";
     	close HTTPFILE;
     	open HTTPFILE, ">$httpdir/cpu.txt" or die "can't open CPU use file in HTTP directory: $!\n";
     	print HTTPFILE "value: $avgproc, ";
-    	close HTTPFILE;    	
+    	close HTTPFILE;
+    	open HTTPFILE, ">$httpdir/mem.txt" or die "can't open memory size file in HTTP directory: $!\n";
+    	print HTTPFILE "value: $stornum, ";
+    	close HTTPFILE;
 
     } elsif ($disp eq "irc") {  
         my @cpresult = `vmcp $cmdline`;
