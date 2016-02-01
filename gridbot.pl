@@ -556,7 +556,7 @@ sub run_vmcp {
         
         # Write out guest count to the HTTP directory
         my $guestmax = (int($gridcount/500) + 1) * 500; 
-    	open HTTPFILE, "$httpdir/count.txt" or die "can't open guest count file in HTTP directory: $!\n";
+    	open HTTPFILE, ">$httpdir/count.txt" or die "can't open guest count file in HTTP directory: $!\n";
     	print HTTPFILE "value: $gridcount, max: $guestmax, ";
     	close HTTPFILE;
         
@@ -575,10 +575,10 @@ sub run_vmcp {
         
         # Write out the graph values to HTTP directory
         my $pagemax = (int($paging/1000) +1 ) * 1000;
-        open HTTPFILE, "$httpdir/paging.txt" or die "can't open paging rate file in HTTP directory: $!\n";
+        open HTTPFILE, ">$httpdir/paging.txt" or die "can't open paging rate file in HTTP directory: $!\n";
     	print HTTPFILE "value: $paging, max: $pagemax, ";
     	close HTTPFILE;
-    	open HTTPFILE, "$httpdir/cpu.txt" or die "can't open CPU use file in HTTP directory: $!\n";
+    	open HTTPFILE, ">$httpdir/cpu.txt" or die "can't open CPU use file in HTTP directory: $!\n";
     	print HTTPFILE "value: $avgproc, ";
     	close HTTPFILE;    	
 
