@@ -667,15 +667,23 @@ sub update_stats {
 
 sub topic_stats {
     my $time = strftime "%a %e %H:%M" , localtime();
+    my $statusstring = "";
     if ($gridcount != $gridpcnt) {
-        $irc->yield( topic => $channels[0] => "Status change: at $time, $gridcount guests active, avg CPU $avgproc%, Paging $paging/sec.");
-	$topicint = 0;
+        $statusstring = "Status change: at $time, $gridcount guests active, avg CPU $avgproc%, Paging $paging/sec.";
+        $irc->yield( topic => $channels[0] => $statusstring );
+		$topicint = 0;
     } elsif ($topicint == 60) {
         &compactmem();
-        $irc->yield( topic => $channels[0] => "Grid status at $time: $gridcount guests active, avg CPU $avgproc%, Paging $paging/sec.");
-        try { tweet("Grid status at $time: $gridcount guests active, avg CPU $avgproc%, Paging $paging/sec.",""); }
-	catch { $irc->yield( ctcp => $channels[0] => "ACTION just tried to tweet and it failed." ); };
-	$topicint = 0;
+        $statusstring = "Grid status at $time: $gridcount guests active, avg CPU $avgproc%, Paging $paging/sec.";
+        $irc->yield( topic => $channels[0] => $statusstring );
+        try { tweet("At $time I'm herding $gridcount clones, which are using $avgproc% of available CPU. Paging is $paging/sec.","#zVM"); }
+		catch { $irc->yield( ctcp => $channels[0] => "ACTION just tried to tweet and it failed." ); };
+		$topicint = 0;
+    }
+    if ( $topicint == 0 ) {
+        open HTTPFILE, ">$httpdir/topic.txt" or die "can't open IRC topic file in HTTP directory: $!\n";
+    	print HTTPFILE "$statusstring ";
+    	close HTTPFILE;    	
     }
     $topicint += 1;
 
