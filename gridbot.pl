@@ -18,6 +18,7 @@ my $nickname = 'testBot';
 my $password = 'gridBotTObDIRG';
 my $ircname  = 'Management of the Cloning Grid';
 my $server   = 'zgn2c001.z.mel.stg.ibm';
+my $httpdir  = '/var/www/localhost/htdocs';
 
 my $gueststatus = {};
 my @channels = ('#bodsz-cloning');
@@ -552,6 +553,14 @@ sub run_vmcp {
         @cpresult = grep { $_ =~ /^GN2C/ } @cpresult;
         $gridpcnt = $gridcount;
         $gridcount = scalar @cpresult;
+        
+        # Write out guest count to the HTTP directory
+        my $guestmax = (int($gridcount/500) + 1) * 500; 
+    	open HTTPFILE, "$httpdir/count.txt" or die "can't open guest count file in HTTP directory: $!\n";
+    	print HTTPFILE "value: $gridcount, max: $guestmax, ";
+    	close HTTPFILE;
+        
+        # Check if update of the guest status table is needed
         if ( $gridcount != keys (%$gueststatus) ) {
         	print "Scanning for new guests.\n";
         	scan_guest_status(@cpresult);
@@ -563,6 +572,15 @@ sub run_vmcp {
         ($avgproc) = $cpresult[0] =~ /AVGPROC-0*(.+)%/;
         ($paging) = $cpresult[2] =~ /PAGING-(.+)\/SEC/;
         $maindelay = int(($avgproc/100)*3) + int($paging/1000)**2 + int($gridcount/500) + 2;
+        
+        # Write out the graph values to HTTP directory
+        my $pagemax = (int($paging/1000) +1 ) * 1000;
+        open HTTPFILE, "$httpdir/paging.txt" or die "can't open paging rate file in HTTP directory: $!\n";
+    	print HTTPFILE "value: $paging, max: $pagemax, ";
+    	close HTTPFILE;
+    	open HTTPFILE, "$httpdir/cpu.txt" or die "can't open CPU use file in HTTP directory: $!\n";
+    	print HTTPFILE "value: $avgproc, ";
+    	close HTTPFILE;    	
 
     } elsif ($disp eq "irc") {  
         my @cpresult = `vmcp $cmdline`;
