@@ -557,7 +557,7 @@ sub run_vmcp {
         # Write out guest count to the HTTP directory
         my $guestmax = (int($gridcount/500) + 2) * 500; 
     	open HTTPFILE, ">$httpdir/count.txt" or die "can't open guest count file in HTTP directory: $!\n";
-    	print HTTPFILE "value: $gridcount, max: $guestmax, ";
+    	print HTTPFILE "$gridcount";
     	close HTTPFILE;
         
         # Check if update of the guest status table is needed
@@ -586,13 +586,13 @@ sub run_vmcp {
         my $pagemax = (int($paging/1000) + 1) * 1000;
         my $stormax = (int($stornum/4096) + 1) * 4096;
         open HTTPFILE, ">$httpdir/paging.txt" or die "can't open paging rate file in HTTP directory: $!\n";
-    	print HTTPFILE "value: $paging, max: $pagemax, ";
+    	print HTTPFILE "$paging";
     	close HTTPFILE;
     	open HTTPFILE, ">$httpdir/cpu.txt" or die "can't open CPU use file in HTTP directory: $!\n";
-    	print HTTPFILE "value: $avgproc, ";
+    	print HTTPFILE "$avgproc";
     	close HTTPFILE;
     	open HTTPFILE, ">$httpdir/mem.txt" or die "can't open memory size file in HTTP directory: $!\n";
-    	print HTTPFILE "value: $stornum, max: $stormax, ";
+    	print HTTPFILE "$stornum";
     	close HTTPFILE;
 
     } elsif ($disp eq "irc") {  
