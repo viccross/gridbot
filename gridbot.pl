@@ -592,7 +592,7 @@ sub run_vmcp {
     	print HTTPFILE "value: $avgproc, ";
     	close HTTPFILE;
     	open HTTPFILE, ">$httpdir/mem.txt" or die "can't open memory size file in HTTP directory: $!\n";
-    	print HTTPFILE "value: $stornum, ";
+    	print HTTPFILE "value: $stornum, max: $stormax, ";
     	close HTTPFILE;
 
     } elsif ($disp eq "irc") {  
