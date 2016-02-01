@@ -18,6 +18,7 @@ my $nickname = 'gridBot';
 my $password = 'gridBotTObDIRG';
 my $ircname  = 'Management of the Cloning Grid';
 my $server   = 'zgn2c001.z.mel.stg.ibm';
+my $httpdir  = '/var/www/localhost/htdocs';
 
 my $gueststatus = {};
 my @channels = ('#bodsz-cloning');
@@ -552,6 +553,14 @@ sub run_vmcp {
         @cpresult = grep { $_ =~ /^GN2C/ } @cpresult;
         $gridpcnt = $gridcount;
         $gridcount = scalar @cpresult;
+        
+        # Write out guest count to the HTTP directory
+        my $guestmax = (int($gridcount/500) + 2) * 500; 
+    	open HTTPFILE, ">$httpdir/count.txt" or die "can't open guest count file in HTTP directory: $!\n";
+    	print HTTPFILE "value: $gridcount, max: $guestmax, ";
+    	close HTTPFILE;
+        
+        # Check if update of the guest status table is needed
         if ( $gridcount != keys (%$gueststatus) ) {
         	print "Scanning for new guests.\n";
         	scan_guest_status(@cpresult);
@@ -563,6 +572,28 @@ sub run_vmcp {
         ($avgproc) = $cpresult[0] =~ /AVGPROC-0*(.+)%/;
         ($paging) = $cpresult[2] =~ /PAGING-(.+)\/SEC/;
         $maindelay = int(($avgproc/100)*3) + int($paging/1000)**2 + int($gridcount/500) + 2;
+        
+        my @storcmd = `vmcp q stor`;
+        my ($storage) = $storcmd[0] =~ /STORAGE = (.+) CONF/;
+        my $stornum = "";
+        if ( ($stornum) = $storage =~ /(.+)G/ ) {
+        	$stornum *= 1024;
+        } else {
+        	($stornum) = $storage =~ /(.+)M/;
+        }
+        
+        # Write out the graph values to HTTP directory
+        my $pagemax = (int($paging/1000) + 1) * 1000;
+        my $stormax = (int($stornum/4096) + 1) * 4096;
+        open HTTPFILE, ">$httpdir/paging.txt" or die "can't open paging rate file in HTTP directory: $!\n";
+    	print HTTPFILE "value: $paging, max: $pagemax, ";
+    	close HTTPFILE;
+    	open HTTPFILE, ">$httpdir/cpu.txt" or die "can't open CPU use file in HTTP directory: $!\n";
+    	print HTTPFILE "value: $avgproc, ";
+    	close HTTPFILE;
+    	open HTTPFILE, ">$httpdir/mem.txt" or die "can't open memory size file in HTTP directory: $!\n";
+    	print HTTPFILE "value: $stornum, max: $stormax, ";
+    	close HTTPFILE;
 
     } elsif ($disp eq "irc") {  
         my @cpresult = `vmcp $cmdline`;
@@ -636,15 +667,23 @@ sub update_stats {
 
 sub topic_stats {
     my $time = strftime "%a %e %H:%M" , localtime();
+    my $statusstring = "";
     if ($gridcount != $gridpcnt) {
-        $irc->yield( topic => $channels[0] => "Status change: at $time, $gridcount guests active, avg CPU $avgproc%, Paging $paging/sec.");
-	$topicint = 0;
+        $statusstring = "Status change: at $time, $gridcount guests active, avg CPU $avgproc%, Paging $paging/sec.";
+        $irc->yield( topic => $channels[0] => $statusstring );
+		$topicint = 0;
     } elsif ($topicint == 60) {
         &compactmem();
-        $irc->yield( topic => $channels[0] => "Grid status at $time: $gridcount guests active, avg CPU $avgproc%, Paging $paging/sec.");
-        try { tweet("Grid status at $time: $gridcount guests active, avg CPU $avgproc%, Paging $paging/sec.",""); }
-	catch { $irc->yield( ctcp => $channels[0] => "ACTION just tried to tweet and it failed." ); };
-	$topicint = 0;
+        $statusstring = "Grid status at $time: $gridcount guests active, avg CPU $avgproc%, Paging $paging/sec.";
+        $irc->yield( topic => $channels[0] => $statusstring );
+        try { tweet("At $time I'm herding $gridcount clones, which are using $avgproc% of available CPU. Paging is $paging/sec.","#zVM"); }
+		catch { $irc->yield( ctcp => $channels[0] => "ACTION just tried to tweet and it failed." ); };
+		$topicint = 0;
+    }
+    if ( $topicint == 0 ) {
+        open HTTPFILE, ">$httpdir/topic.txt" or die "can't open IRC topic file in HTTP directory: $!\n";
+    	print HTTPFILE "$statusstring ";
+    	close HTTPFILE;    	
     }
     $topicint += 1;
 
