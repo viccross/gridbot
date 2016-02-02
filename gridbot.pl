@@ -698,7 +698,7 @@ sub pop_dirmBot {
     POE::Session->create (
       inline_states => {
         _start      => \&init_dirmBot,
-	dirm_cmd    => \&dirm_cmd, 
+		dirm_cmd    => \&dirm_cmd, 
       },
       args => [ "$cmdline", "$nick" ],
     );
@@ -833,7 +833,7 @@ sub run_action {
 }
 
 sub scan_guest_status {
-	my @guestlist = @_;
+	my (@guestlist) = @_;
 	
 	foreach my $guest (@guestlist) {
 		$guest =~ s/^\s+|\s+$//g;
