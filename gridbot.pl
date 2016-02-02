@@ -839,7 +839,7 @@ sub scan_guest_status {
 		$guest =~ s/^\s+|\s+$//g;
 		if (!defined $gueststatus->{"$guest"}) {
 			$gueststatus->{"$guest"} = 'activating';
-			`ping -c1 $guest`;
+			`ping -c1 -w1 $guest`;
 			if ($? == 0 ) {
 				$gueststatus->{"$guest"} = 'active';
 			}
@@ -853,7 +853,7 @@ sub action_guest_status {
 		my $status = $gueststatus->{ $guest };
 		switch ($status) {
 			case "active" {
-				`ping -c1 $guest`;
+				`ping -c1 -w1 $guest`;
 				if ($? != 0) {
 					$gueststatus->{ $guest }='recycling';
 					$poe_kernel->post('command', 'enqueue', '', "SIGNAL SHUTDOWN $guest WITHIN 30", "");
@@ -862,7 +862,7 @@ sub action_guest_status {
 			}
 			case "activating" {
 				print "$guest is $status: ";
-				`ping -c1 $guest`;
+				`ping -c1 -w1 $guest`;
 				if ($? == 0) {
 					$gueststatus->{ $guest }='active';
 					print "marking active\n";
