@@ -563,7 +563,7 @@ sub run_vmcp {
         # Check if update of the guest status table is needed
         if ( $gridcount != keys (%$gueststatus) ) {
         	print "Scanning for new guests.\n";
-		    $poe_kernel->post('action', 'enqueue', 'scan', @cpresult);
+		    $poe_kernel->post('action', 'enqueue', '', "scan", @cpresult);
         }
     } elsif ($disp eq "indicate") {
 #        local $/ = ' ';
@@ -658,7 +658,7 @@ sub run_smapi {
 sub update_stats {
     $poe_kernel->post('vmcp', 'enqueue', '', "Q N", "", "gridcount");
     $poe_kernel->post('vmcp', 'enqueue', '', "IND", "", "indicate");
-    $poe_kernel->post('action', 'enqueue', 'action');
+    $poe_kernel->post('action', 'enqueue', '', "action");
 
     $poe_kernel->delay(topic_stats => 5);
 
