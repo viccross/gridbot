@@ -563,7 +563,7 @@ sub run_vmcp {
         # Check if update of the guest status table is needed
         if ( $gridcount != keys (%$gueststatus) ) {
         	print "Scanning for new guests.\n";
-        	scan_guest_status(@cpresult);
+		    $poe_kernel->post('action', 'enqueue', 'scan', @cpresult);
         }
     } elsif ($disp eq "indicate") {
 #        local $/ = ' ';
@@ -658,7 +658,7 @@ sub run_smapi {
 sub update_stats {
     $poe_kernel->post('vmcp', 'enqueue', '', "Q N", "", "gridcount");
     $poe_kernel->post('vmcp', 'enqueue', '', "IND", "", "indicate");
-    $poe_kernel->post('action', 'enqueue', '');
+    $poe_kernel->post('action', 'enqueue', 'action');
 
     $poe_kernel->delay(topic_stats => 5);
 
@@ -809,6 +809,29 @@ sub tweet {
     return;
 }
 
+sub pop_action {
+    my ($postback, $action, @guestlist) = @_;
+
+    POE::Session->create (
+      inline_states => {
+        _start      => \&run_action,
+#	cmd_clr     => \&cmd_clr,
+      },
+      args => [ "$action", @guestlist ],
+    );
+    return;
+}
+
+sub run_action {
+	my ($action, @guestlist) = @_[ARG0 .. ARG1];
+	
+	if ($action eq "scan") {
+		scan_guest_status(@guestlist);
+	} elsif ($action eq "action") {
+		action_guest_status();
+	}
+}
+
 sub scan_guest_status {
 	my @guestlist = @_;
 	
@@ -823,19 +846,6 @@ sub scan_guest_status {
 		}
 	}
 	return;
-}
-
-sub pop_action {
-    my ($postback) = @_;
-
-    POE::Session->create (
-      inline_states => {
-        _start      => \&action_guest_status,
-#	cmd_clr     => \&cmd_clr,
-      },
-      args => [ ],
-    );
-    return;
 }
 
 sub action_guest_status {
@@ -878,6 +888,12 @@ sub action_guest_status {
 				$poe_kernel->post('command', 'enqueue', '', "SIGNAL SHUTDOWN $guest WITHIN 30", "");
 				$gueststatus->{$guest}='deactivating';
 				print "issued command, marking as deactivating.\n";
+			}
+			case "recycle" {
+				print "$guest is $status: ";
+				$poe_kernel->post('command', 'enqueue', '', "SIGNAL SHUTDOWN $guest WITHIN 30", "");
+				$gueststatus->{$guest}='recycling';
+				print "issued command, marking as recycling.\n";
 			}
 			case "recycling" {
 				print "$guest is $status: ";
