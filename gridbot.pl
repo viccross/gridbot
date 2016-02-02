@@ -563,7 +563,7 @@ sub run_vmcp {
         # Check if update of the guest status table is needed
         if ( $gridcount != keys (%$gueststatus) ) {
         	print "Scanning for new guests.\n";
-		    $poe_kernel->post('action', 'enqueue', '', "scan", @cpresult);
+		    $poe_kernel->post('action', 'enqueue', '', "scan", \@cpresult);
         }
     } elsif ($disp eq "indicate") {
 #        local $/ = ' ';
@@ -810,30 +810,30 @@ sub tweet {
 }
 
 sub pop_action {
-    my ($postback, $action, @guestlist) = @_;
+    my ($postback, $action, $guestlistref) = @_;
 
     POE::Session->create (
       inline_states => {
         _start      => \&run_action,
 #	cmd_clr     => \&cmd_clr,
       },
-      args => [ "$action", @guestlist ],
+      args => [ "$action", $guestlistref ],
     );
     return;
 }
 
 sub run_action {
-	my ($action, @guestlist) = @_[ARG0 .. ARG1];
+	my ($action, $guestlistref) = @_[ARG0 .. ARG1];
 	
 	if ($action eq "scan") {
-		scan_guest_status(@guestlist);
+		scan_guest_status($guestlistref);
 	} elsif ($action eq "action") {
 		action_guest_status();
 	}
 }
 
 sub scan_guest_status {
-	my (@guestlist) = @_;
+	my (@guestlist) = @{$_[0]};
 	
 	foreach my $guest (@guestlist) {
 		$guest =~ s/^\s+|\s+$//g;
