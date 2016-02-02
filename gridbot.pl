@@ -557,13 +557,13 @@ sub run_vmcp {
         # Write out guest count to the HTTP directory
         my $guestmax = (int($gridcount/500) + 2) * 500; 
     	open HTTPFILE, ">$httpdir/count.txt" or die "can't open guest count file in HTTP directory: $!\n";
-    	print HTTPFILE "value: $gridcount, max: $guestmax, ";
+    	print HTTPFILE "$gridcount";
     	close HTTPFILE;
         
         # Check if update of the guest status table is needed
         if ( $gridcount != keys (%$gueststatus) ) {
         	print "Scanning for new guests.\n";
-        	scan_guest_status(@cpresult);
+		    $poe_kernel->post('action', 'enqueue', '', "scan", \@cpresult);
         }
     } elsif ($disp eq "indicate") {
 #        local $/ = ' ';
@@ -586,13 +586,13 @@ sub run_vmcp {
         my $pagemax = (int($paging/1000) + 1) * 1000;
         my $stormax = (int($stornum/4096) + 1) * 4096;
         open HTTPFILE, ">$httpdir/paging.txt" or die "can't open paging rate file in HTTP directory: $!\n";
-    	print HTTPFILE "value: $paging, max: $pagemax, ";
+    	print HTTPFILE "$paging";
     	close HTTPFILE;
     	open HTTPFILE, ">$httpdir/cpu.txt" or die "can't open CPU use file in HTTP directory: $!\n";
-    	print HTTPFILE "value: $avgproc, ";
+    	print HTTPFILE "$avgproc";
     	close HTTPFILE;
     	open HTTPFILE, ">$httpdir/mem.txt" or die "can't open memory size file in HTTP directory: $!\n";
-    	print HTTPFILE "value: $stornum, max: $stormax, ";
+    	print HTTPFILE "$stornum";
     	close HTTPFILE;
 
     } elsif ($disp eq "irc") {  
@@ -658,7 +658,7 @@ sub run_smapi {
 sub update_stats {
     $poe_kernel->post('vmcp', 'enqueue', '', "Q N", "", "gridcount");
     $poe_kernel->post('vmcp', 'enqueue', '', "IND", "", "indicate");
-    $poe_kernel->post('action', 'enqueue', '');
+    $poe_kernel->post('action', 'enqueue', '', "action");
 
     $poe_kernel->delay(topic_stats => 5);
 
@@ -698,7 +698,7 @@ sub pop_dirmBot {
     POE::Session->create (
       inline_states => {
         _start      => \&init_dirmBot,
-	dirm_cmd    => \&dirm_cmd, 
+		dirm_cmd    => \&dirm_cmd, 
       },
       args => [ "$cmdline", "$nick" ],
     );
@@ -809,14 +809,37 @@ sub tweet {
     return;
 }
 
+sub pop_action {
+    my ($postback, $action, $guestlistref) = @_;
+
+    POE::Session->create (
+      inline_states => {
+        _start      => \&run_action,
+#	cmd_clr     => \&cmd_clr,
+      },
+      args => [ "$action", $guestlistref ],
+    );
+    return;
+}
+
+sub run_action {
+	my ($action, $guestlistref) = @_[ARG0 .. ARG1];
+	
+	if ($action eq "scan") {
+		scan_guest_status($guestlistref);
+	} elsif ($action eq "action") {
+		action_guest_status();
+	}
+}
+
 sub scan_guest_status {
-	my @guestlist = @_;
+	my (@guestlist) = @{$_[0]};
 	
 	foreach my $guest (@guestlist) {
 		$guest =~ s/^\s+|\s+$//g;
 		if (!defined $gueststatus->{"$guest"}) {
 			$gueststatus->{"$guest"} = 'activating';
-			`ping -c1 $guest`;
+			`ping -c1 -w1 $guest`;
 			if ($? == 0 ) {
 				$gueststatus->{"$guest"} = 'active';
 			}
@@ -825,25 +848,12 @@ sub scan_guest_status {
 	return;
 }
 
-sub pop_action {
-    my ($postback) = @_;
-
-    POE::Session->create (
-      inline_states => {
-        _start      => \&action_guest_status,
-#	cmd_clr     => \&cmd_clr,
-      },
-      args => [ ],
-    );
-    return;
-}
-
 sub action_guest_status {
 	for my $guest ( keys %$gueststatus ) {
 		my $status = $gueststatus->{ $guest };
 		switch ($status) {
 			case "active" {
-				`ping -c1 $guest`;
+				`ping -c1 -w1 $guest`;
 				if ($? != 0) {
 					$gueststatus->{ $guest }='recycling';
 					$poe_kernel->post('command', 'enqueue', '', "SIGNAL SHUTDOWN $guest WITHIN 30", "");
@@ -852,7 +862,7 @@ sub action_guest_status {
 			}
 			case "activating" {
 				print "$guest is $status: ";
-				`ping -c1 $guest`;
+				`ping -c1 -w1 $guest`;
 				if ($? == 0) {
 					$gueststatus->{ $guest }='active';
 					print "marking active\n";
@@ -878,6 +888,12 @@ sub action_guest_status {
 				$poe_kernel->post('command', 'enqueue', '', "SIGNAL SHUTDOWN $guest WITHIN 30", "");
 				$gueststatus->{$guest}='deactivating';
 				print "issued command, marking as deactivating.\n";
+			}
+			case "recycle" {
+				print "$guest is $status: ";
+				$poe_kernel->post('command', 'enqueue', '', "SIGNAL SHUTDOWN $guest WITHIN 30", "");
+				$gueststatus->{$guest}='recycling';
+				print "issued command, marking as recycling.\n";
 			}
 			case "recycling" {
 				print "$guest is $status: ";
