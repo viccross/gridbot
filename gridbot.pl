@@ -676,8 +676,10 @@ sub topic_stats {
         &compactmem();
         $statusstring = "Grid status at $time: $gridcount guests active, avg CPU $avgproc%, Paging $paging/sec.";
         $irc->yield( topic => $channels[0] => $statusstring );
-        try { tweet("At $time I'm herding $gridcount clones, which are using $avgproc% of available CPU. Paging is $paging/sec.","#zVM"); }
-		catch { $irc->yield( ctcp => $channels[0] => "ACTION just tried to tweet and it failed." ); };
+        if ($gridcount > 0) {
+          try { tweet("At $time I'm herding $gridcount clones, which are using $avgproc% of available CPU. Paging is $paging/sec.","#zVM"); }
+		  catch { $irc->yield( ctcp => $channels[0] => "ACTION just tried to tweet and it failed." ); };
+        }
 		$topicint = 0;
     }
     if ( $topicint == 0 ) {
