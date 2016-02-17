@@ -550,6 +550,8 @@ sub run_vmcp {
         local $/ = ' ';
         my @cpresult = `vmcp --buffer=512k $cmdline`;
 
+        foreach (@cpresult) { s/SYSC\n//g; }
+        foreach (@cpresult) { s/SYSG\n//g; }
         foreach (@cpresult) { s/DSC\n//g; }
         foreach (@cpresult) { s/-L.{4}\n//g; }
 
