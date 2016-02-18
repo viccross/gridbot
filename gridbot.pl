@@ -105,7 +105,7 @@ POE::Component::JobQueue->spawn
   
 POE::Component::JobQueue->spawn
   ( Alias       => 'action',
-    WorkerLimit => 1,
+    WorkerLimit => 2,
     Worker      => \&pop_action,
     Passive     => {},
   );
