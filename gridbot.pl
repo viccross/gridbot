@@ -838,7 +838,7 @@ sub pop_action {
         _start      => \&run_action,
         action      => \&action_guest_status,
       },
-      args => [ "$action", "$guest", "$status" ],
+      args => [ "$action", $guest, "$status" ],
     );
     return;
 }
