@@ -449,7 +449,7 @@ sub startgrp {
     my ($nick, $cage, $rack, $group) = @_;
 
     foreach my $x (@grpsufx) {
-      $rack =~ tr[a-z][A-Z];
+      $group =~ tr[a-z][A-Z];
       $poe_kernel->post('command', 'enqueue', '', "XAUTOLOG GN2C$cage$rack$group$x", "$nick");
 	  $gueststatus->{ "GN2C$cage$rack$group$x" }='activating';
 #      $irc->yield( privmsg => @channels[0] => "XAUTOLOG GN2C$cage$rack$group$x");
@@ -469,7 +469,7 @@ sub stopgrp {
     my ($nick, $cage, $rack, $group) = @_;
 
     foreach my $x (@grpsufx) {
-      $rack =~ tr[a-z][A-Z];
+      $group =~ tr[a-z][A-Z];
       $poe_kernel->post('command', 'enqueue', '', "SIGNAL SHUTDOWN GN2C$cage$rack$group$x WITHIN 30", "$nick");
 	  $gueststatus->{ "GN2C$cage$rack$group$x" }='deactivating';
     }
