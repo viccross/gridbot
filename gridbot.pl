@@ -570,7 +570,7 @@ sub run_vmcp {
         # Check if update of the guest status table is needed
         if ( $gridcount != keys (%$gueststatus) ) {
         	print "Scanning for new guests.\n";
-		    $poe_kernel->post('action', 'enqueue', '', "scan", \@cpresult);
+		    $poe_kernel->post('action', 'enqueue', '', "scan", \@cpresult, '');
         }
     } elsif ($disp eq "indicate") {
 #        local $/ = ' ';
@@ -838,7 +838,7 @@ sub pop_action {
         _start      => \&run_action,
         action      => \&action_guest_status,
       },
-      args => [ "$action", $guest, $status ],
+      args => [ "$action", "$guest", "$status" ],
     );
     return;
 }
