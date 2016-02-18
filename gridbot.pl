@@ -860,7 +860,7 @@ sub scan_guest_status {
 	foreach my $guest (@guestlist) {
 		$guest =~ s/^\s+|\s+$//g;
 		if (!defined $gueststatus->{"$guest"}) {
-			$gueststatus->{"$guest"} = 'activating';
+        $poe_kernel->post('action', 'enqueue', '', "update", "$guest", "activating");
 #			`ping -c1 -w1 $guest.gn2c.mel.stg.ibm`;
 #			if ($? == 0 ) {
 #				$gueststatus->{"$guest"} = 'active';
