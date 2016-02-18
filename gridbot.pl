@@ -336,6 +336,7 @@ sub get_group_status {
        	if ( defined $gueststatus->{ "GN2C$cage$rack$group$x" } ) {
        		switch ( $gueststatus->{ "GN2C$cage$rack$group$x" } ) {
       			case "active"       { $status = $status . " a" }
+      			case "monitor"      { $status = $status . " m" }
        			case "activating"   { $status = $status . " S" }
        			case "deactivating" { $status = $status . " D" }
        			case "recycling"    { $status = $status . " R" }
@@ -448,7 +449,9 @@ sub startgrp {
     my ($nick, $cage, $rack, $group) = @_;
 
     foreach my $x (@grpsufx) {
+      $group =~ tr[a-z][A-Z];
       $poe_kernel->post('command', 'enqueue', '', "XAUTOLOG GN2C$cage$rack$group$x", "$nick");
+	  $gueststatus->{ "GN2C$cage$rack$group$x" }='activating';
 #      $irc->yield( privmsg => @channels[0] => "XAUTOLOG GN2C$cage$rack$group$x");
     }
     return;
@@ -466,7 +469,9 @@ sub stopgrp {
     my ($nick, $cage, $rack, $group) = @_;
 
     foreach my $x (@grpsufx) {
+      $group =~ tr[a-z][A-Z];
       $poe_kernel->post('command', 'enqueue', '', "SIGNAL SHUTDOWN GN2C$cage$rack$group$x WITHIN 30", "$nick");
+	  $gueststatus->{ "GN2C$cage$rack$group$x" }='deactivating';
     }
     return;
 }
@@ -547,6 +552,8 @@ sub run_vmcp {
         local $/ = ' ';
         my @cpresult = `vmcp --buffer=512k $cmdline`;
 
+        foreach (@cpresult) { s/SYSC\n//g; }
+        foreach (@cpresult) { s/SYSG\n//g; }
         foreach (@cpresult) { s/DSC\n//g; }
         foreach (@cpresult) { s/-L.{4}\n//g; }
 
@@ -841,10 +848,10 @@ sub scan_guest_status {
 		$guest =~ s/^\s+|\s+$//g;
 		if (!defined $gueststatus->{"$guest"}) {
 			$gueststatus->{"$guest"} = 'activating';
-			`ping -c1 -w1 $guest`;
-			if ($? == 0 ) {
-				$gueststatus->{"$guest"} = 'active';
-			}
+#			`ping -c1 -w1 $guest.gn2c.mel.stg.ibm`;
+#			if ($? == 0 ) {
+#				$gueststatus->{"$guest"} = 'active';
+#			}
 		}
 	}
 	return;
@@ -855,7 +862,14 @@ sub action_guest_status {
 		my $status = $gueststatus->{ $guest };
 		switch ($status) {
 			case "active" {
-				`ping -c1 -w1 $guest`;
+				`ping -c1 -w1 $guest.gn2c.mel.stg.ibm`;
+				if ($? != 0) {
+					$gueststatus->{ $guest }='monitor';
+					print "$guest problem ping, set to monitor.\n";
+				}
+			}
+			case "monitor" {
+				`ping -c1 -w1 $guest.gn2c.mel.stg.ibm`;
 				if ($? != 0) {
 					$gueststatus->{ $guest }='recycling';
 					$poe_kernel->post('command', 'enqueue', '', "SIGNAL SHUTDOWN $guest WITHIN 30", "");
@@ -864,7 +878,7 @@ sub action_guest_status {
 			}
 			case "activating" {
 				print "$guest is $status: ";
-				`ping -c1 -w1 $guest`;
+				`ping -c1 -w1 $guest.gn2c.mel.stg.ibm`;
 				if ($? == 0) {
 					$gueststatus->{ $guest }='active';
 					print "marking active\n";
