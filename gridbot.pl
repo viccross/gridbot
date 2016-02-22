@@ -513,6 +513,7 @@ sub pop_cmd {
         cmd_clr     => \&cmd_clr,
       },
       args => [ "$cmdline", "$nick" ],
+      options => { trace => 1 },
     );
     return;
 }
