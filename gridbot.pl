@@ -836,9 +836,10 @@ sub pop_action {
     POE::Session->create (
       inline_states => {
         _start      => \&run_action,
-#        actionstat  => \&action_guest_status,
+        actionstat  => \&action_guest_status,
       },
       args => [ "$action", $guest, "$status" ],
+      options => { trace => 1 },
     );
     return;
 }
