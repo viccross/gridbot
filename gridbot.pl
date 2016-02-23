@@ -843,12 +843,14 @@ sub pop_action {
       args => [ "$action", $guest, "$status" ],
       options => { trace => 1 },
     );
+    print "Popped an action and created a Session\n";
     return;
 }
 
 sub run_action {
 	my ($action, $guest, $status) = @_[ARG0 .. ARG2];
 	
+    print "In a Session for $guest\n";
 	if ($action eq "scan") {
 		scan_guest_status($guest);
 	} elsif ($action eq "update") {
