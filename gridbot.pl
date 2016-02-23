@@ -841,21 +841,21 @@ sub tweet {
 #}
 
 sub pop_scan {
-    my ($postback, $guestlist) = @_;
+    my ($postback, $guestlistref) = @_;
 
     POE::Session->create (
       inline_states => {
         _start      => \&scan_guest_status,
       },
-      args => [ $guestlist ],
+      args => [ $guestlistref ],
     );
     return;
 }
 
 sub scan_guest_status {
-	my (@guestlist) = $_[ARG0];
+	my ($guestlistref) = $_[ARG0];
 	
-	foreach my $guest (@guestlist) {
+	foreach my $guest (@$guestlistref) {
 		$guest =~ s/^\s+|\s+$//g;
 		if (!defined $gueststatus->{"$guest"}) {
 			print "posting update for $guest\n";
