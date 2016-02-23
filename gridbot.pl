@@ -21,6 +21,7 @@ my $server   = 'zgn2c001.z.mel.stg.ibm';
 my $httpdir  = '/var/www/localhost/htdocs';
 
 my $gueststatus = {};
+my $guestchecks = {};
 my @channels = ('#bodsz-cloning');
 
 my $TWITTER_CONSUMER_KEY = "u8cGtaZRPH9ROZUf0HZgEOtS7";
@@ -311,6 +312,7 @@ sub process {
 	    $irc->yield( privmsg => $dest => "Number of active grid guests: $gridcount");
 	    $irc->yield( privmsg => $dest => "AvgProc: $avgproc% Paging: $paging");
 	    $irc->yield( privmsg => $dest => "Current command delay: $maindelay sec");
+	    $irc->yield( privmsg => $dest => "Number of guests with pending status checks: " . keys (%$guestchecks) );
 #	    $irc->yield( privmsg => $dest => "Is dirmBot logged on: $dirmBot");
         $cmdok="ok";
     }
@@ -841,9 +843,8 @@ sub pop_action {
         actionstat  => \&action_guest_status,
       },
       args => [ "$action", $guest, "$status" ],
-      options => { trace => 1 },
     );
-    print "Popped an action and created a Session\n";
+    print "Popped an action and created a Session for $guest\n";
     return;
 }
 
@@ -873,6 +874,9 @@ sub scan_guest_status {
 #			}
 		}
 	}
+	for my $guest ( keys %$guestchecks ) {
+        $poe_kernel->post('action', 'enqueue', '', "update", "$guest", "") or print "that didn't work.\n";
+	}
 	print "scan_guest_status ending.\n";
 	return;
 }
@@ -881,6 +885,7 @@ sub action_guest_status {
 #	for my $guest ( keys %$gueststatus ) {
 	my ($guest, $newstatus) = @_;
 	if ($newstatus eq "") { 
+		delete $guestchecks->{ $guest };
 		my $status = $gueststatus->{ $guest };
 		switch ($status) {
 			case "active" {
@@ -888,7 +893,7 @@ sub action_guest_status {
 				if ($? != 0) {
 					$gueststatus->{ $guest }='monitor';
 					print "$guest problem ping, set to monitor.\n";
-					$poe_kernel->alarm_add(_start => time() + 30, "update", $guest, '');
+					$guestchecks->{ $guest }= 'y';
 				}
 			}
 			case "monitor" {
@@ -897,7 +902,7 @@ sub action_guest_status {
 					$gueststatus->{ $guest }='recycling';
 					$poe_kernel->post('command', 'enqueue', '', "SIGNAL SHUTDOWN $guest WITHIN 30", "");
 					print "$guest problem ping, set to recycle.\n";
-					$poe_kernel->alarm_add(_start => time() + 30, "update", $guest, '');
+					$guestchecks->{ $guest }= 'y';
 				}
 			}
 			case "activating" {
@@ -922,21 +927,21 @@ sub action_guest_status {
 				$poe_kernel->post('command', 'enqueue', '', "XAUTOLOG $guest", "");
 				$gueststatus->{$guest}='activating';
 				print "issued command, marking as activating.\n";
-				$poe_kernel->alarm_add(_start => time() + 30, "update", $guest, '');
+				$guestchecks->{ $guest }= 'y';
 			}	 
 			case "deactivate" {
 				print "$guest is $status: ";
 				$poe_kernel->post('command', 'enqueue', '', "SIGNAL SHUTDOWN $guest WITHIN 30", "");
 				$gueststatus->{$guest}='deactivating';
 				print "issued command, marking as deactivating.\n";
-				$poe_kernel->alarm_add(_start => time() + 30, "update", $guest, '');
+				$guestchecks->{ $guest }= 'y';
 			}
 			case "recycle" {
 				print "$guest is $status: ";
 				$poe_kernel->post('command', 'enqueue', '', "SIGNAL SHUTDOWN $guest WITHIN 30", "");
 				$gueststatus->{$guest}='recycling';
 				print "issued command, marking as recycling.\n";
-				$poe_kernel->alarm_add(_start => time() + 30, "update", $guest, '');
+				$guestchecks->{ $guest }= 'y';
 			}
 			case "recycling" {
 				print "$guest is $status: ";
@@ -947,7 +952,7 @@ sub action_guest_status {
 					$gueststatus->{ $guest }='activating';
 					$poe_kernel->post('command', 'enqueue', '', "XAUTOLOG $guest", "");
 					print "came down, restarted, marked as activating.\n";
-					$poe_kernel->alarm_add(_start => time() + 30, "update", $guest, '');
+					$guestchecks->{ $guest }= 'y';
 				} else { print "still waiting to come down.\n"};
 			}
 			else {
@@ -957,7 +962,7 @@ sub action_guest_status {
 	}
 	else {
 		$gueststatus->{ $guest }=$newstatus;
-		$poe_kernel->alarm_add(_start => time() + 30, "update", $guest, '');
+		$guestchecks->{ $guest }= 'y';
 	}
 	return;
 }
