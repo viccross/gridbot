@@ -911,7 +911,10 @@ sub action_guest_status {
 				if ($? == 0) {
 					$gueststatus->{ $guest }='active';
 					print "marking active\n";
-				} else { print "\n"; }
+				} else { 
+					$guestchecks->{ $guest }= 'y';
+					print "\n";
+				}
 			}
 			case "deactivating" {
 				print "$guest is $status: ";
@@ -920,7 +923,10 @@ sub action_guest_status {
 				if ("$cmdout" ne "$guest") {
 					delete $gueststatus->{ $guest };
 					print "marking as down.\n";
-				} else { print "\n"; }
+				} else {
+					$guestchecks->{ $guest }= 'y';
+					print "\n";
+				}
 			}
 			case "activate" {
 				print "$guest is $status: ";
