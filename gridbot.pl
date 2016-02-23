@@ -252,7 +252,7 @@ sub process {
         my $dest = ( $pubpriv eq 'priv' ) ? $nick : $channel;
         $guest =~ tr[a-z][A-Z];
         $irc->yield( privmsg => $channel => "Setting status of $guest to $status for $nick" );
-        $poe_kernel->post('action', 'enqueue', '', "update", "$guest", "$status");
+        $poe_kernel->post('action', 'enqueue', '', "$guest", "$status");
         $irc->yield( privmsg => $dest =>  "Clone $guest is now set to $status");
         $cmdok="ok";
     }
@@ -453,7 +453,7 @@ sub startgrp {
     foreach my $x (@grpsufx) {
       $group =~ tr[a-z][A-Z];
       $poe_kernel->post('command', 'enqueue', '', "XAUTOLOG GN2C$cage$rack$group$x", "$nick");
-      $poe_kernel->post('action', 'enqueue', '', "update", "GN2C$cage$rack$group$x", "activating");
+      $poe_kernel->post('action', 'enqueue', '', "GN2C$cage$rack$group$x", "activating");
 #      $irc->yield( privmsg => @channels[0] => "XAUTOLOG GN2C$cage$rack$group$x");
     }
     return;
@@ -473,7 +473,7 @@ sub stopgrp {
     foreach my $x (@grpsufx) {
       $group =~ tr[a-z][A-Z];
       $poe_kernel->post('command', 'enqueue', '', "SIGNAL SHUTDOWN GN2C$cage$rack$group$x WITHIN 30", "$nick");
-      $poe_kernel->post('action', 'enqueue', '', "update", "GN2C$cage$rack$group$x", "deactivating");
+      $poe_kernel->post('action', 'enqueue', '', "GN2C$cage$rack$group$x", "deactivating");
     }
     return;
 }
@@ -515,7 +515,6 @@ sub pop_cmd {
         cmd_clr     => \&cmd_clr,
       },
       args => [ "$cmdline", "$nick" ],
-      options => { trace => 1 },
     );
     return;
 }
@@ -572,8 +571,6 @@ sub run_vmcp {
         
         # Check if update of the guest status table is needed
         if ( $gridcount != keys (%$gueststatus) ) {
-        	print "Scanning for new guests.\n";
-#		    $poe_kernel->post('action', 'enqueue', '', "scan", \@cpresult, '');
 			scan_guest_status( \@cpresult );
         }
     } elsif ($disp eq "indicate") {
@@ -669,9 +666,8 @@ sub run_smapi {
 sub update_stats {
     $poe_kernel->post('vmcp', 'enqueue', '', "Q N", "", "gridcount");
     $poe_kernel->post('vmcp', 'enqueue', '', "IND", "", "indicate");
-#    $poe_kernel->post('action', 'enqueue', '', "action");
 	for my $guest ( keys %$guestchecks ) {
-        $poe_kernel->post('action', 'enqueue', '', "update", "$guest", "") or print "that didn't work.\n";
+        $poe_kernel->post('action', 'enqueue', '', "$guest", "") or print "that didn't work.\n";
 	}
 
     $poe_kernel->delay(topic_stats => 5);
@@ -837,32 +833,6 @@ sub tweet {
 #    return;
 #}
 
-sub pop_action {
-    my ($postback, $action, $guest, $status) = @_;
-
-    POE::Session->create (
-      inline_states => {
-        _start      => \&run_action,
-        actionstat  => \&action_guest_status,
-      },
-      args => [ "$action", $guest, "$status" ],
-    );
-    print "Popped an action and created a Session for $guest\n";
-    return;
-}
-
-sub run_action {
-	my ($action, $guest, $status) = @_[ARG0 .. ARG2];
-	
-    print "In a Session for $guest\n";
-	if ($action eq "scan") {
-		scan_guest_status($guest);
-	} elsif ($action eq "update") {
-		action_guest_status($guest, $status);
-	}
-	return;
-}
-
 sub scan_guest_status {
 	my (@guestlist) = @{$_[0]};
 	
@@ -870,20 +840,30 @@ sub scan_guest_status {
 		$guest =~ s/^\s+|\s+$//g;
 		if (!defined $gueststatus->{"$guest"}) {
 			print "posting update for $guest\n";
-        $poe_kernel->post('action', 'enqueue', '', "update", "$guest", "activating") or print "that didn't work.\n";
+        $poe_kernel->post('action', 'enqueue', '', "$guest", "activating") or print "that didn't work.\n";
 #			`ping -c1 -w1 $guest.gn2c.mel.stg.ibm`;
 #			if ($? == 0 ) {
 #				$gueststatus->{"$guest"} = 'active';
 #			}
 		}
 	}
-	print "scan_guest_status ending.\n";
 	return;
 }
 
+sub pop_action {
+    my ($postback, $action, $guest, $status) = @_;
+
+    POE::Session->create (
+      inline_states => {
+        _start      => \&action_guest_status,
+      },
+      args => [ $guest, "$status" ],
+    );
+    return;
+}
+
 sub action_guest_status {
-#	for my $guest ( keys %$gueststatus ) {
-	my ($guest, $newstatus) = @_;
+	my ($guest, $newstatus) = @_[ARG0 .. ARG1];
 	if ($newstatus eq "") { 
 		delete $guestchecks->{ $guest };
 		my $status = $gueststatus->{ $guest };
