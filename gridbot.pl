@@ -775,7 +775,7 @@ sub run_cattle {
 
 sub cattle_pause {
     my ($nick) = $_[ARG0];
-    $poe_kernel->post('cattle', 'enqueue', '$nick');
+    $poe_kernel->post('cattle', 'enqueue', '', '$nick');
     return;
 }
 
