@@ -21,6 +21,7 @@ my $server   = 'zgn2c001.z.mel.stg.ibm';
 my $httpdir  = '/var/www/localhost/htdocs';
 
 my $gueststatus = {};
+my $guestchecks = {};
 my @channels = ('#bodsz-cloning');
 
 my $TWITTER_CONSUMER_KEY = "u8cGtaZRPH9ROZUf0HZgEOtS7";
@@ -107,6 +108,13 @@ POE::Component::JobQueue->spawn
   ( Alias       => 'action',
     WorkerLimit => 1,
     Worker      => \&pop_action,
+    Passive     => {},
+  );
+
+POE::Component::JobQueue->spawn
+  ( Alias       => 'scan',
+    WorkerLimit => 1,
+    Worker      => \&pop_scan,
     Passive     => {},
   );
 
@@ -251,7 +259,7 @@ sub process {
         my $dest = ( $pubpriv eq 'priv' ) ? $nick : $channel;
         $guest =~ tr[a-z][A-Z];
         $irc->yield( privmsg => $channel => "Setting status of $guest to $status for $nick" );
-        $gueststatus->{ $guest } = $status;
+        $poe_kernel->post('action', 'enqueue', '', "$guest", "$status");
         $irc->yield( privmsg => $dest =>  "Clone $guest is now set to $status");
         $cmdok="ok";
     }
@@ -311,6 +319,7 @@ sub process {
 	    $irc->yield( privmsg => $dest => "Number of active grid guests: $gridcount");
 	    $irc->yield( privmsg => $dest => "AvgProc: $avgproc% Paging: $paging");
 	    $irc->yield( privmsg => $dest => "Current command delay: $maindelay sec");
+	    $irc->yield( privmsg => $dest => "Number of guests with pending status checks: " . keys (%$guestchecks) );
 #	    $irc->yield( privmsg => $dest => "Is dirmBot logged on: $dirmBot");
         $cmdok="ok";
     }
@@ -451,7 +460,7 @@ sub startgrp {
     foreach my $x (@grpsufx) {
       $group =~ tr[a-z][A-Z];
       $poe_kernel->post('command', 'enqueue', '', "XAUTOLOG GN2C$cage$rack$group$x", "$nick");
-	  $gueststatus->{ "GN2C$cage$rack$group$x" }='activating';
+      $poe_kernel->post('action', 'enqueue', '', "GN2C$cage$rack$group$x", "activating");
 #      $irc->yield( privmsg => @channels[0] => "XAUTOLOG GN2C$cage$rack$group$x");
     }
     return;
@@ -471,7 +480,7 @@ sub stopgrp {
     foreach my $x (@grpsufx) {
       $group =~ tr[a-z][A-Z];
       $poe_kernel->post('command', 'enqueue', '', "SIGNAL SHUTDOWN GN2C$cage$rack$group$x WITHIN 30", "$nick");
-	  $gueststatus->{ "GN2C$cage$rack$group$x" }='deactivating';
+      $poe_kernel->post('action', 'enqueue', '', "GN2C$cage$rack$group$x", "deactivating");
     }
     return;
 }
@@ -569,8 +578,7 @@ sub run_vmcp {
         
         # Check if update of the guest status table is needed
         if ( $gridcount != keys (%$gueststatus) ) {
-        	print "Scanning for new guests.\n";
-		    $poe_kernel->post('action', 'enqueue', '', "scan", \@cpresult);
+			$poe_kernel->post('scan', 'enqueue', '', \@cpresult );
         }
     } elsif ($disp eq "indicate") {
 #        local $/ = ' ';
@@ -665,7 +673,9 @@ sub run_smapi {
 sub update_stats {
     $poe_kernel->post('vmcp', 'enqueue', '', "Q N", "", "gridcount");
     $poe_kernel->post('vmcp', 'enqueue', '', "IND", "", "indicate");
-    $poe_kernel->post('action', 'enqueue', '', "action");
+	for my $guest ( keys %$guestchecks ) {
+        $poe_kernel->post('action', 'enqueue', '', "$guest", "") or print "that didn't work.\n";
+	}
 
     $poe_kernel->delay(topic_stats => 5);
 
@@ -765,7 +775,7 @@ sub run_cattle {
 
 sub cattle_pause {
     my ($nick) = $_[ARG0];
-    $poe_kernel->post('cattle', 'enqueue', '$nick');
+    $poe_kernel->post('cattle', 'enqueue', '', '$nick');
     return;
 }
 
@@ -818,36 +828,38 @@ sub tweet {
     return;
 }
 
-sub pop_action {
-    my ($postback, $action, $guestlistref) = @_;
+#sub pop_action {
+#    my ($postback, $action, $guestlistref) = @_;
+#
+#    POE::Session->create (
+#      inline_states => {
+#        _start      => \&run_action,
+#      },
+#      args => [ "$action", $guestlistref ],
+#    );
+#    return;
+#}
+
+sub pop_scan {
+    my ($postback, $guestlistref) = @_;
 
     POE::Session->create (
       inline_states => {
-        _start      => \&run_action,
-#	cmd_clr     => \&cmd_clr,
+        _start      => \&scan_guest_status,
       },
-      args => [ "$action", $guestlistref ],
+      args => [ $guestlistref ],
     );
     return;
 }
 
-sub run_action {
-	my ($action, $guestlistref) = @_[ARG0 .. ARG1];
-	
-	if ($action eq "scan") {
-		scan_guest_status($guestlistref);
-	} elsif ($action eq "action") {
-		action_guest_status();
-	}
-}
-
 sub scan_guest_status {
-	my (@guestlist) = @{$_[0]};
+	my ($guestlistref) = $_[ARG0];
 	
-	foreach my $guest (@guestlist) {
+	foreach my $guest (@$guestlistref) {
 		$guest =~ s/^\s+|\s+$//g;
 		if (!defined $gueststatus->{"$guest"}) {
-			$gueststatus->{"$guest"} = 'activating';
+			print "posting update for $guest\n";
+        $poe_kernel->post('action', 'enqueue', '', "$guest", "activating") or print "that didn't work.\n";
 #			`ping -c1 -w1 $guest.gn2c.mel.stg.ibm`;
 #			if ($? == 0 ) {
 #				$gueststatus->{"$guest"} = 'active';
@@ -857,8 +869,22 @@ sub scan_guest_status {
 	return;
 }
 
+sub pop_action {
+    my ($postback, $guest, $status) = @_;
+
+    POE::Session->create (
+      inline_states => {
+        _start      => \&action_guest_status,
+      },
+      args => [ $guest, "$status" ],
+    );
+    return;
+}
+
 sub action_guest_status {
-	for my $guest ( keys %$gueststatus ) {
+	my ($guest, $newstatus) = @_[ARG0 .. ARG1];
+	if ($newstatus eq "") { 
+		delete $guestchecks->{ $guest };
 		my $status = $gueststatus->{ $guest };
 		switch ($status) {
 			case "active" {
@@ -866,6 +892,7 @@ sub action_guest_status {
 				if ($? != 0) {
 					$gueststatus->{ $guest }='monitor';
 					print "$guest problem ping, set to monitor.\n";
+					$guestchecks->{ $guest }= 'y';
 				}
 			}
 			case "monitor" {
@@ -874,6 +901,7 @@ sub action_guest_status {
 					$gueststatus->{ $guest }='recycling';
 					$poe_kernel->post('command', 'enqueue', '', "SIGNAL SHUTDOWN $guest WITHIN 30", "");
 					print "$guest problem ping, set to recycle.\n";
+					$guestchecks->{ $guest }= 'y';
 				}
 			}
 			case "activating" {
@@ -882,7 +910,10 @@ sub action_guest_status {
 				if ($? == 0) {
 					$gueststatus->{ $guest }='active';
 					print "marking active\n";
-				} else { print "\n"; }
+				} else { 
+					$guestchecks->{ $guest }= 'y';
+					print "\n";
+				}
 			}
 			case "deactivating" {
 				print "$guest is $status: ";
@@ -891,25 +922,31 @@ sub action_guest_status {
 				if ("$cmdout" ne "$guest") {
 					delete $gueststatus->{ $guest };
 					print "marking as down.\n";
-				} else { print "\n"; }
+				} else {
+					$guestchecks->{ $guest }= 'y';
+					print "\n";
+				}
 			}
 			case "activate" {
 				print "$guest is $status: ";
 				$poe_kernel->post('command', 'enqueue', '', "XAUTOLOG $guest", "");
 				$gueststatus->{$guest}='activating';
 				print "issued command, marking as activating.\n";
+				$guestchecks->{ $guest }= 'y';
 			}	 
 			case "deactivate" {
 				print "$guest is $status: ";
 				$poe_kernel->post('command', 'enqueue', '', "SIGNAL SHUTDOWN $guest WITHIN 30", "");
 				$gueststatus->{$guest}='deactivating';
 				print "issued command, marking as deactivating.\n";
+				$guestchecks->{ $guest }= 'y';
 			}
 			case "recycle" {
 				print "$guest is $status: ";
 				$poe_kernel->post('command', 'enqueue', '', "SIGNAL SHUTDOWN $guest WITHIN 30", "");
 				$gueststatus->{$guest}='recycling';
 				print "issued command, marking as recycling.\n";
+				$guestchecks->{ $guest }= 'y';
 			}
 			case "recycling" {
 				print "$guest is $status: ";
@@ -919,12 +956,22 @@ sub action_guest_status {
 				if ("$cmdout" ne "$guest") {
 					$gueststatus->{ $guest }='activating';
 					$poe_kernel->post('command', 'enqueue', '', "XAUTOLOG $guest", "");
-					print "came down, restarted, marked as activating.\n"
+					print "came down, restarted, marked as activating.\n";
+					$guestchecks->{ $guest }= 'y';
 				} else { print "still waiting to come down.\n"};
 			}
 			else {
 				print "$guest: unknown status $status.\n";
 			}
+		}
+	}
+	else {
+		if ($newstatus eq "down") {
+			delete $gueststatus->{ $guest };
+			delete $guestchecks->{ $guest };
+		} else {
+			$gueststatus->{ $guest }=$newstatus;
+			$guestchecks->{ $guest }= 'y';
 		}
 	}
 	return;
