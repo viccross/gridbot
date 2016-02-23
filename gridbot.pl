@@ -670,6 +670,9 @@ sub update_stats {
     $poe_kernel->post('vmcp', 'enqueue', '', "Q N", "", "gridcount");
     $poe_kernel->post('vmcp', 'enqueue', '', "IND", "", "indicate");
 #    $poe_kernel->post('action', 'enqueue', '', "action");
+	for my $guest ( keys %$guestchecks ) {
+        $poe_kernel->post('action', 'enqueue', '', "update", "$guest", "") or print "that didn't work.\n";
+	}
 
     $poe_kernel->delay(topic_stats => 5);
 
@@ -873,9 +876,6 @@ sub scan_guest_status {
 #				$gueststatus->{"$guest"} = 'active';
 #			}
 		}
-	}
-	for my $guest ( keys %$guestchecks ) {
-        $poe_kernel->post('action', 'enqueue', '', "update", "$guest", "") or print "that didn't work.\n";
 	}
 	print "scan_guest_status ending.\n";
 	return;
