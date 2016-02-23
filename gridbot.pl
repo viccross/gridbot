@@ -106,8 +106,15 @@ POE::Component::JobQueue->spawn
   
 POE::Component::JobQueue->spawn
   ( Alias       => 'action',
-    WorkerLimit => 2,
+    WorkerLimit => 1,
     Worker      => \&pop_action,
+    Passive     => {},
+  );
+
+POE::Component::JobQueue->spawn
+  ( Alias       => 'scan',
+    WorkerLimit => 1,
+    Worker      => \&pop_scan,
     Passive     => {},
   );
 
@@ -571,7 +578,7 @@ sub run_vmcp {
         
         # Check if update of the guest status table is needed
         if ( $gridcount != keys (%$gueststatus) ) {
-			scan_guest_status( \@cpresult );
+			$poe_kernel->post('scan', 'enqueue', '', \@cpresult );
         }
     } elsif ($disp eq "indicate") {
 #        local $/ = ' ';
@@ -833,8 +840,20 @@ sub tweet {
 #    return;
 #}
 
+sub pop_scan {
+    my ($postback, $guestlist) = @_;
+
+    POE::Session->create (
+      inline_states => {
+        _start      => \&scan_guest_status,
+      },
+      args => [ $guestlist ],
+    );
+    return;
+}
+
 sub scan_guest_status {
-	my (@guestlist) = @{$_[0]};
+	my (@guestlist) = $_[ARG0];
 	
 	foreach my $guest (@guestlist) {
 		$guest =~ s/^\s+|\s+$//g;
