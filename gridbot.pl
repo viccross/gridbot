@@ -851,7 +851,7 @@ sub scan_guest_status {
 }
 
 sub pop_action {
-    my ($postback, $action, $guest, $status) = @_;
+    my ($postback, $guest, $status) = @_;
 
     POE::Session->create (
       inline_states => {
