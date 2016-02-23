@@ -966,8 +966,13 @@ sub action_guest_status {
 		}
 	}
 	else {
-		$gueststatus->{ $guest }=$newstatus;
-		$guestchecks->{ $guest }= 'y';
+		if ($newstatus eq "down") {
+			delete $gueststatus->{ $guest };
+			delete $guestchecks->{ $guest };
+		} else {
+			$gueststatus->{ $guest }=$newstatus;
+			$guestchecks->{ $guest }= 'y';
+		}
 	}
 	return;
 }
