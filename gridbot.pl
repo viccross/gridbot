@@ -583,6 +583,12 @@ sub run_vmcp {
     } elsif ($disp eq "indicate") {
 #        local $/ = ' ';
         my @cpresult = `vmcp $cmdline`;
+        
+        open HTTPFILE, ">$httpdir/indicate.txt" or die "can't open INDICATE file in HTTP directory: $!\n";
+        foreach my $line (@cpresult) {
+        	print HTTPFILE "$line";
+        }
+        close HTTPFILE;
 
         ($avgproc) = $cpresult[0] =~ /AVGPROC-0*(.+)%/;
         ($paging) = $cpresult[2] =~ /PAGING-(.+)\/SEC/;
@@ -609,7 +615,20 @@ sub run_vmcp {
     	open HTTPFILE, ">$httpdir/mem.txt" or die "can't open memory size file in HTTP directory: $!\n";
     	print HTTPFILE "$stornum";
     	close HTTPFILE;
-
+    } elsif ($disp eq "allocpage") {
+    	my @cpresult = `vmcp q alloc page`;
+        open HTTPFILE, ">$httpdir/allocpage.txt" or die "can't open page allocation file in HTTP directory: $!\n";
+        foreach my $line (@cpresult) {
+        	print HTTPFILE "$line";
+        }
+        close HTTPFILE;
+        
+        my $lastline = scalar @cpresult - 1;
+        my ($usable) = $cpresult[$lastline] =~ /USABLE .* (.+)%$/;
+        open HTTPFILE, ">$httpdir/pageusable.txt" or die "can't open page usable file in HTTP directory: $!\n";
+       	print HTTPFILE "$usable";
+        close HTTPFILE;
+        
     } elsif ($disp eq "irc") {  
         my @cpresult = `vmcp $cmdline`;
         my $rc = $?;
@@ -673,6 +692,7 @@ sub run_smapi {
 sub update_stats {
     $poe_kernel->post('vmcp', 'enqueue', '', "Q N", "", "gridcount");
     $poe_kernel->post('vmcp', 'enqueue', '', "IND", "", "indicate");
+    $poe_kernel->post('vmcp', 'enqueue', '', "Q ALLOC PAGE", "", "allocpage");
 	for my $guest ( keys %$guestchecks ) {
         $poe_kernel->post('action', 'enqueue', '', "$guest", "") or print "that didn't work.\n";
 	}
