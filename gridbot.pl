@@ -624,7 +624,7 @@ sub run_vmcp {
         close HTTPFILE;
         
         my $lastline = scalar @cpresult - 1;
-        my $usable = $cpresult[$lastline] =~ / (.+)%/;
+        my ($usable) = $cpresult[$lastline] =~ /USABLE .* (.+)%$/;
         open HTTPFILE, ">$httpdir/pageusable.txt" or die "can't open page usable file in HTTP directory: $!\n";
        	print HTTPFILE "$usable";
         close HTTPFILE;
