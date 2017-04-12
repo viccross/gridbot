@@ -34,6 +34,10 @@ my @racksufx = ('1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D',
 
 my $gridcount = 0;
 my $gridpcnt = 0;
+my $cage1count = 0;
+my $cage2count = 0;
+my $cage3count = 0;
+my $cage4count = 0;
 my $avgproc = 0;
 my $paging = 0;
 my $topicint = 60;
@@ -569,11 +573,31 @@ sub run_vmcp {
         @cpresult = grep { $_ =~ /^GN2C/ } @cpresult;
         $gridpcnt = $gridcount;
         $gridcount = scalar @cpresult;
+        my @cage1 = grep { $_ =~ /^GN2C1/ } @cpresult;
+        my @cage2 = grep { $_ =~ /^GN2C2/ } @cpresult;
+        my @cage3 = grep { $_ =~ /^GN2C3/ } @cpresult;
+        my @cage4 = grep { $_ =~ /^GN2C4/ } @cpresult;
+        $cage1count = scalar @cage1;
+        $cage2count = scalar @cage2;
+        $cage3count = scalar @cage3;
+        $cage4count = scalar @cage4;
         
         # Write out guest count to the HTTP directory
         my $guestmax = (int($gridcount/500) + 2) * 500; 
     	open HTTPFILE, ">$httpdir/count.txt" or die "can't open guest count file in HTTP directory: $!\n";
     	print HTTPFILE "$gridcount";
+    	close HTTPFILE;
+    	open HTTPFILE, ">$httpdir/cage1count.txt" or die "can't open guest count file in HTTP directory: $!\n";
+    	print HTTPFILE "$cage1count";
+    	close HTTPFILE;
+    	open HTTPFILE, ">$httpdir/cage2count.txt" or die "can't open guest count file in HTTP directory: $!\n";
+    	print HTTPFILE "$cage2count";
+    	close HTTPFILE;
+    	open HTTPFILE, ">$httpdir/cage3count.txt" or die "can't open guest count file in HTTP directory: $!\n";
+    	print HTTPFILE "$cage3count";
+    	close HTTPFILE;
+    	open HTTPFILE, ">$httpdir/cage4count.txt" or die "can't open guest count file in HTTP directory: $!\n";
+    	print HTTPFILE "$cage4count";
     	close HTTPFILE;
         
         # Check if update of the guest status table is needed
