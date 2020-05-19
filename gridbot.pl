@@ -17,7 +17,7 @@ my $pidfile  = '/var/run/gridbot.pid';
 my $nickname = 'gridBot';
 my $password = 'gridBotTObDIRG';
 my $ircname  = 'Management of the Cloning Grid';
-my $server   = 'zgn2c001.z.syd.stg.ibm';
+my $server   = 'zgn2c001.z.stg.ibm';
 my $httpdir  = '/var/www/localhost/htdocs';
 
 my $gueststatus = {};
