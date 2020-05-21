@@ -904,7 +904,7 @@ sub scan_guest_status {
 		if (!defined $gueststatus->{"$guest"}) {
 			print "posting update for $guest\n";
         $poe_kernel->post('action', 'enqueue', '', "$guest", "activating") or print "that didn't work.\n";
-#			`ping -c1 -w1 $guest.gn2c.mel.stg.ibm`;
+#			`ping -c1 -w1 $guest.gn2c.syd.stg.ibm`;
 #			if ($? == 0 ) {
 #				$gueststatus->{"$guest"} = 'active';
 #			}
@@ -932,7 +932,7 @@ sub action_guest_status {
 		my $status = $gueststatus->{ $guest };
 		switch ($status) {
 			case "active" {
-				`ping -c1 -w1 $guest.gn2c.mel.stg.ibm`;
+				`ping -c1 -w1 $guest.gn2c.syd.stg.ibm`;
 				if ($? != 0) {
 					$gueststatus->{ $guest }='monitor';
 					print "$guest problem ping, set to monitor.\n";
@@ -940,7 +940,7 @@ sub action_guest_status {
 				}
 			}
 			case "monitor" {
-				`ping -c1 -w1 $guest.gn2c.mel.stg.ibm`;
+				`ping -c1 -w1 $guest.gn2c.syd.stg.ibm`;
 				if ($? != 0) {
 					$gueststatus->{ $guest }='recycling';
 					$poe_kernel->post('command', 'enqueue', '', "SIGNAL SHUTDOWN $guest WITHIN 30", "");
@@ -950,7 +950,7 @@ sub action_guest_status {
 			}
 			case "activating" {
 				print "$guest is $status: ";
-				`ping -c1 -w1 $guest.gn2c.mel.stg.ibm`;
+				`ping -c1 -w1 $guest.gn2c.syd.stg.ibm`;
 				if ($? == 0) {
 					$gueststatus->{ $guest }='active';
 					print "marking active\n";
