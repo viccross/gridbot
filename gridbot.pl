@@ -562,21 +562,32 @@ sub run_vmcp {
 #    $irc->yield( privmsg => $channel => "Issuing $cmdline for $nick" );
 
     if ($disp eq "gridcount") {
-        local $/ = ' ';
+#        local $/ = ' ';
         my @cpresult = `vmcp --buffer=512k $cmdline`;
 
-        foreach (@cpresult) { s/SYSC\n//g; }
-        foreach (@cpresult) { s/SYSG\n//g; }
-        foreach (@cpresult) { s/DSC\n//g; }
-        foreach (@cpresult) { s/-L.{4}\n//g; }
+#        foreach (@cpresult) { s/SYSC\n//g; }
+#        foreach (@cpresult) { s/SYSG\n//g; }
+#        foreach (@cpresult) { s/DSC\n//g; }
+#        foreach (@cpresult) { s/-L.{4}\n//g; }
+#        @cpresult = grep { $_ =~ /^GN2C/ } @cpresult;
 
-        @cpresult = grep { $_ =~ /^GN2C/ } @cpresult;
+        chomp (@cpresult);
+
+        my $cpstring = join(',', @cpresult);
+        @cpresult = split /, ?/,$cpstring;
+        foreach (@cpresult) { s/ -//g; }
+#        foreach (@cpresult) { s/ +SYSC ?//g; }
+#        foreach (@cpresult) { s/ +SYSG ?//g; }
+        foreach (@cpresult) { s/ +DSC ?//g; }
+#        foreach (@cpresult) { s/L.{4} ?//g; }
+        @cpresult = grep { $_ =~ /^\s*GN2C/ } @cpresult;
+
         $gridpcnt = $gridcount;
         $gridcount = scalar @cpresult;
-        my @cage1 = grep { $_ =~ /^GN2C1/ } @cpresult;
-        my @cage2 = grep { $_ =~ /^GN2C2/ } @cpresult;
-        my @cage3 = grep { $_ =~ /^GN2C3/ } @cpresult;
-        my @cage4 = grep { $_ =~ /^GN2C4/ } @cpresult;
+        my @cage1 = grep { $_ =~ /^\s*GN2C1/ } @cpresult;
+        my @cage2 = grep { $_ =~ /^\s*GN2C2/ } @cpresult;
+        my @cage3 = grep { $_ =~ /^\s*GN2C3/ } @cpresult;
+        my @cage4 = grep { $_ =~ /^\s*GN2C4/ } @cpresult;
         $cage1count = scalar @cage1;
         $cage2count = scalar @cage2;
         $cage3count = scalar @cage3;
