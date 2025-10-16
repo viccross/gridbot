@@ -252,7 +252,7 @@ sub process {
     if ( my ($cage, $rack) = $what =~ /^rackstat (\d) (\d)/ ) {
         my $dest = ( $pubpriv eq 'priv' ) ? $nick : $channel;
         $irc->yield( privmsg => $channel => "Finding status of cage $cage, rack $rack for $nick" );
-       	$irc->yield( privmsg => $dest =>  "G$cage$rack" . "gx status as follows:");
+       	$irc->yield( privmsg => $dest =>  "G$cage$rack" . "00ggx status as follows:");
        	$irc->yield( privmsg => $dest =>  "  g 0 1 2 3 4 5 6 7 8 9 ");
         foreach my $group (@racksufx) {
         	$irc->yield( privmsg => $dest => " " . sprintf("%02d", $group) . get_group_status($cage, $rack, $group) );
