@@ -29,8 +29,8 @@ my $TWITTER_CONSUMER_SECRET = "WPDYSSvzhwN0kpW3r2JOVGbMJMOn0XhRd6eU9MAOm5a2mxfNr
 my $TWITTER_ACCESS_TOKEN = "401858482-IQbMcYFnWMrulJNFOcTfJLxW0M4jKAvBofVy8Fi0";
 my $TWITTER_ACCESS_SECRET = "TZQXTPZWsvQlnd19sm8PaADUjw57NFeEuXR5OzFxm9Wbs";
 
-my @grpsufx = ('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F');
-my @racksufx = ('1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F');
+my @grpsufx = ('0', '1', '2', '3', '4', '5', '6', '7', '8', '9');
+my @racksufx = ('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20', '21', '22', '23');
 
 my $gridcount = 0;
 my $gridpcnt = 0;
@@ -38,6 +38,7 @@ my $cage1count = 0;
 my $cage2count = 0;
 my $cage3count = 0;
 my $cage4count = 0;
+my $cage5count = 0;
 my $avgproc = 0;
 my $paging = 0;
 my $topicint = 60;
@@ -241,9 +242,9 @@ sub process {
     if ( my ($cage, $rack, $group) = $what =~ /^grpstat (.) (.) (.)/ ) {
         my $dest = ( $pubpriv eq 'priv' ) ? $nick : $channel;
         $irc->yield( privmsg => $channel => "Finding status of cage $cage, rack $rack, group $group for $nick" );
-        $group =~ tr[a-z][A-Z];
-        $irc->yield( privmsg => $dest => "GN2C$cage$rack$group" . "x status as follows:");
-        $irc->yield( privmsg => $dest => " 0 1 2 3 4 5 6 7 8 9 A B C D E F");
+        $group = sprintf("%02d", $group);
+        $irc->yield( privmsg => $dest => "G$cage$rack$group" . "x status as follows:");
+        $irc->yield( privmsg => $dest => " 0 1 2 3 4 5 6 7 8 9 ");
         $irc->yield( privmsg => $dest => get_group_status($cage, $rack, $group) );
         $cmdok="ok";
     }
@@ -251,7 +252,7 @@ sub process {
     if ( my ($cage, $rack) = $what =~ /^rackstat (.) (.)/ ) {
         my $dest = ( $pubpriv eq 'priv' ) ? $nick : $channel;
         $irc->yield( privmsg => $channel => "Finding status of cage $cage, rack $rack for $nick" );
-       	$irc->yield( privmsg => $dest =>  "GN2C$cage$rack" . "gx status as follows:");
+       	$irc->yield( privmsg => $dest =>  "G$cage$rack" . "gx status as follows:");
        	$irc->yield( privmsg => $dest =>  " g 0 1 2 3 4 5 6 7 8 9 A B C D E F");
         foreach my $group (@racksufx) {
         	$irc->yield( privmsg => $dest => " " . $group . get_group_status($cage, $rack, $group) );
@@ -345,9 +346,10 @@ sub get_group_status {
 	my ($cage, $rack, $group) = @_;
 	my $status = "";
 	
+    $group = sprintf("%02d", $group);
 	foreach my $x (@grpsufx) {
-       	if ( defined $gueststatus->{ "GN2C$cage$rack$group$x" } ) {
-       		switch ( $gueststatus->{ "GN2C$cage$rack$group$x" } ) {
+       	if ( defined $gueststatus->{ "G$cage$rack$group$x" } ) {
+       		switch ( $gueststatus->{ "G$cage$rack$group$x" } ) {
       			case "active"       { $status = $status . " a" }
       			case "monitor"      { $status = $status . " m" }
        			case "activating"   { $status = $status . " S" }
@@ -462,10 +464,10 @@ sub startgrp {
     my ($nick, $cage, $rack, $group) = @_;
 
     foreach my $x (@grpsufx) {
-      $group =~ tr[a-z][A-Z];
-      $poe_kernel->post('command', 'enqueue', '', "XAUTOLOG GN2C$cage$rack$group$x", "$nick");
-      $poe_kernel->post('action', 'enqueue', '', "GN2C$cage$rack$group$x", "activating");
-#      $irc->yield( privmsg => @channels[0] => "XAUTOLOG GN2C$cage$rack$group$x");
+      $group = sprintf("%02d", $group);
+      $poe_kernel->post('command', 'enqueue', '', "XAUTOLOG G$cage$rack$group$x", "$nick");
+      $poe_kernel->post('action', 'enqueue', '', "G$cage$rack$group$x", "activating");
+#      $irc->yield( privmsg => @channels[0] => "XAUTOLOG G$cage$rack$group$x");
     }
     return;
 }
@@ -482,9 +484,9 @@ sub stopgrp {
     my ($nick, $cage, $rack, $group) = @_;
 
     foreach my $x (@grpsufx) {
-      $group =~ tr[a-z][A-Z];
-      $poe_kernel->post('command', 'enqueue', '', "SIGNAL SHUTDOWN GN2C$cage$rack$group$x WITHIN 30", "$nick");
-      $poe_kernel->post('action', 'enqueue', '', "GN2C$cage$rack$group$x", "deactivating");
+      $group = sprintf("%02d", $group);
+      $poe_kernel->post('command', 'enqueue', '', "SIGNAL SHUTDOWN G$cage$rack$group$x WITHIN 30", "$nick");
+      $poe_kernel->post('action', 'enqueue', '', "G$cage$rack$group$x", "deactivating");
     }
     return;
 }
@@ -580,18 +582,20 @@ sub run_vmcp {
 #        foreach (@cpresult) { s/ +SYSG ?//g; }
         foreach (@cpresult) { s/ +DSC ?//g; }
 #        foreach (@cpresult) { s/L.{4} ?//g; }
-        @cpresult = grep { $_ =~ /^\s*GN2C/ } @cpresult;
+        @cpresult = grep { $_ =~ /^\s*G\d/ } @cpresult;
 
         $gridpcnt = $gridcount;
         $gridcount = scalar @cpresult;
-        my @cage1 = grep { $_ =~ /^\s*GN2C1/ } @cpresult;
-        my @cage2 = grep { $_ =~ /^\s*GN2C2/ } @cpresult;
-        my @cage3 = grep { $_ =~ /^\s*GN2C3/ } @cpresult;
-        my @cage4 = grep { $_ =~ /^\s*GN2C4/ } @cpresult;
+        my @cage1 = grep { $_ =~ /^\s*G1/ } @cpresult;
+        my @cage2 = grep { $_ =~ /^\s*G2/ } @cpresult;
+        my @cage3 = grep { $_ =~ /^\s*G3/ } @cpresult;
+        my @cage4 = grep { $_ =~ /^\s*G4/ } @cpresult;
+        my @cage5 = grep { $_ =~ /^\s*G5/ } @cpresult;
         $cage1count = scalar @cage1;
         $cage2count = scalar @cage2;
         $cage3count = scalar @cage3;
         $cage4count = scalar @cage4;
+        $cage5count = scalar @cage5;
         
         # Write out guest count to the HTTP directory
         my $guestmax = (int($gridcount/500) + 2) * 500; 
@@ -609,6 +613,9 @@ sub run_vmcp {
     	close HTTPFILE;
     	open HTTPFILE, ">$httpdir/cage4count.txt" or die "can't open guest count file in HTTP directory: $!\n";
     	print HTTPFILE "$cage4count";
+    	close HTTPFILE;
+    	open HTTPFILE, ">$httpdir/cage5count.txt" or die "can't open guest count file in HTTP directory: $!\n";
+    	print HTTPFILE "$cage5count";
     	close HTTPFILE;
         
         # Check if update of the guest status table is needed
@@ -815,11 +822,11 @@ sub run_cattle {
     #    $irc->yield( privmsg => $nick => "Issuing $cmdline");
     #    $irc->yield( privmsg => $channel => "Issuing $cmdline for $nick" );
 
-    my $digit1 = rand(2) + 1;
+    my $digit1 = rand(5) + 1;
     my $digit2 = rand(4) + 1;
     my $digit3 = rand(2) + 1;
     my $digit4 = rand(10);
-    my $tgtname = "gn2c$digit1$digit2$digit3$digit4";
+    my $tgtname = "g$digit1$digit2" . "00$digit3$digit4";
     $irc->yield( privmsg => $nick => "running workload on $tgtname");
     system ( 'expect -c "spawn ssh -o \"PubkeyAuthentication no\" -o \"StrictHostKeyChecking no\" root@$tgtname dd if=/dev/urandom of=/dev/null bs=1024 count=25600" -f /root/ssh.expect &' );
     if ($cattledelay > 0) {
@@ -943,7 +950,7 @@ sub action_guest_status {
 		my $status = $gueststatus->{ $guest };
 		switch ($status) {
 			case "active" {
-				`ping -c1 -w1 $guest.gn2c.syd.stg.ibm`;
+				`ping -c1 -w1 gn2c-$guest.gn2c.syd.stg.ibm`;
 				if ($? != 0) {
 					$gueststatus->{ $guest }='monitor';
 					print "$guest problem ping, set to monitor.\n";
@@ -951,7 +958,7 @@ sub action_guest_status {
 				}
 			}
 			case "monitor" {
-				`ping -c1 -w1 $guest.gn2c.syd.stg.ibm`;
+				`ping -c1 -w1 gn2c-$guest.gn2c.syd.stg.ibm`;
 				if ($? != 0) {
 					$gueststatus->{ $guest }='recycling';
 					$poe_kernel->post('command', 'enqueue', '', "SIGNAL SHUTDOWN $guest WITHIN 30", "");
@@ -961,7 +968,7 @@ sub action_guest_status {
 			}
 			case "activating" {
 				print "$guest is $status: ";
-				`ping -c1 -w1 $guest.gn2c.syd.stg.ibm`;
+				`ping -c1 -w1 gn2c-$guest.gn2c.syd.stg.ibm`;
 				if ($? == 0) {
 					$gueststatus->{ $guest }='active';
 					print "marking active\n";
