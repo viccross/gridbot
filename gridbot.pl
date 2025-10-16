@@ -239,28 +239,29 @@ sub process {
         $cmdok="ok";
     }
     # Get a group status
-    if ( my ($cage, $rack, $group) = $what =~ /^grpstat (.) (.) (.)/ ) {
+    if ( my ($cage, $rack, $group) = $what =~ /^grpstat (\d) (\d) (\d\d?)/ ) {
         my $dest = ( $pubpriv eq 'priv' ) ? $nick : $channel;
         $irc->yield( privmsg => $channel => "Finding status of cage $cage, rack $rack, group $group for $nick" );
-        $group = sprintf("%02d", $group);
+        $group = sprintf("%04d", $group);
         $irc->yield( privmsg => $dest => "G$cage$rack$group" . "x status as follows:");
         $irc->yield( privmsg => $dest => " 0 1 2 3 4 5 6 7 8 9 ");
         $irc->yield( privmsg => $dest => get_group_status($cage, $rack, $group) );
         $cmdok="ok";
     }
     # Get a rack status
-    if ( my ($cage, $rack) = $what =~ /^rackstat (.) (.)/ ) {
+    if ( my ($cage, $rack) = $what =~ /^rackstat (\d) (\d)/ ) {
         my $dest = ( $pubpriv eq 'priv' ) ? $nick : $channel;
         $irc->yield( privmsg => $channel => "Finding status of cage $cage, rack $rack for $nick" );
        	$irc->yield( privmsg => $dest =>  "G$cage$rack" . "gx status as follows:");
-       	$irc->yield( privmsg => $dest =>  " g 0 1 2 3 4 5 6 7 8 9 A B C D E F");
+       	$irc->yield( privmsg => $dest =>  "   0 0 0 0 0 0 0 0 0 0 1 1 1 1 1 1 1 1 1 1 2 2 2 2");
+       	$irc->yield( privmsg => $dest =>  " g 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3");
         foreach my $group (@racksufx) {
         	$irc->yield( privmsg => $dest => " " . $group . get_group_status($cage, $rack, $group) );
         }
         $cmdok="ok";
     }
     # Set a guest status
-    if ( my ($guest, $status) = $what =~ /^guestset (.+) (.+)/ ) {
+    if ( my ($guest, $status) = $what =~ /^guestset (G.+) (.+)/ ) {
         my $dest = ( $pubpriv eq 'priv' ) ? $nick : $channel;
         $guest =~ tr[a-z][A-Z];
         $irc->yield( privmsg => $channel => "Setting status of $guest to $status for $nick" );
@@ -276,28 +277,28 @@ sub process {
         $cmdok="ok";
     }
     # start a group of servers
-    if ( my ($cage, $rack, $group) = $what =~ /^startgrp (.) (.) (.)$/ ) {
+    if ( my ($cage, $rack, $group) = $what =~ /^startgrp (\d) (\d) (\d\d?)$/ ) {
         $irc->yield( privmsg => $channel => "$nick asked me to start cage $cage, rack $rack, group $group");
 	    $irc->yield( ctcp => $channel => "ACTION puts that in the queue");
 	    &startgrp($nick,$cage,$rack,$group);
         $cmdok="ok";
     }
     # stop a group of servers
-    if ( my ($cage, $rack, $group) = $what =~ /^stopgrp (.) (.) (.)$/ ) {
+    if ( my ($cage, $rack, $group) = $what =~ /^stopgrp (\d) (\d) (\d\d?)$/ ) {
         $irc->yield( privmsg => $channel => "$nick asked me to stop cage $cage, rack $rack, group $group");
 	    $irc->yield( ctcp => $channel => "ACTION puts that in the queue");
 	    &stopgrp($nick,$cage,$rack,$group);
         $cmdok="ok";
     }
     # start a rack of servers
-    if ( my ($cage, $rack) = $what =~ /^startrack (.) (.)$/ ) {
+    if ( my ($cage, $rack) = $what =~ /^startrack (\d) (\d)$/ ) {
         $irc->yield( privmsg => $channel => "$nick asked me to start cage $cage, rack $rack");
 	    $irc->yield( ctcp => $channel => "ACTION puts that in the queue");
 	    &startrack($nick,$cage,$rack);
         $cmdok="ok";
     }
     # stop a rack of servers
-    if ( my ($cage, $rack) = $what =~ /^stoprack (.) (.)$/ ) {
+    if ( my ($cage, $rack) = $what =~ /^stoprack (\d) (\d)$/ ) {
         $irc->yield( privmsg => $channel => "$nick asked me to stop cage $cage, rack $rack");
 	    $irc->yield( ctcp => $channel => "ACTION puts that in the queue");
 	    &stoprack($nick,$cage,$rack);
@@ -346,7 +347,7 @@ sub get_group_status {
 	my ($cage, $rack, $group) = @_;
 	my $status = "";
 	
-    $group = sprintf("%02d", $group);
+    $group = sprintf("%04d", $group);
 	foreach my $x (@grpsufx) {
        	if ( defined $gueststatus->{ "G$cage$rack$group$x" } ) {
        		switch ( $gueststatus->{ "G$cage$rack$group$x" } ) {
@@ -464,7 +465,7 @@ sub startgrp {
     my ($nick, $cage, $rack, $group) = @_;
 
     foreach my $x (@grpsufx) {
-      $group = sprintf("%02d", $group);
+      $group = sprintf("%04d", $group);
       $poe_kernel->post('command', 'enqueue', '', "XAUTOLOG G$cage$rack$group$x", "$nick");
       $poe_kernel->post('action', 'enqueue', '', "G$cage$rack$group$x", "activating");
 #      $irc->yield( privmsg => @channels[0] => "XAUTOLOG G$cage$rack$group$x");
@@ -484,7 +485,7 @@ sub stopgrp {
     my ($nick, $cage, $rack, $group) = @_;
 
     foreach my $x (@grpsufx) {
-      $group = sprintf("%02d", $group);
+      $group = sprintf("%04d", $group);
       $poe_kernel->post('command', 'enqueue', '', "SIGNAL SHUTDOWN G$cage$rack$group$x WITHIN 30", "$nick");
       $poe_kernel->post('action', 'enqueue', '', "G$cage$rack$group$x", "deactivating");
     }
