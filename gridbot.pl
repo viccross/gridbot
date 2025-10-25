@@ -197,9 +197,11 @@ sub process {
         $irc->yield( privmsg => $dest => "guestset [gst] [s] : Sets status for a specific clone");
         $irc->yield( privmsg => $dest => "startcage [C]      : Starts a cage C=cage");
         $irc->yield( privmsg => $dest => "startrack [C R]    : Starts a rack C=cage, R=rack");
+        $irc->yield( privmsg => $dest => "start10 [C R]      : Starts 10 clones in a rack C=cage, R=rack");
         $irc->yield( privmsg => $dest => "startgrp [C R G]   : Starts a group C=cage, R=rack, G=group");
         $irc->yield( privmsg => $dest => "stopcage [C]       : Stops a cage C=cage");
         $irc->yield( privmsg => $dest => "stoprack [C R]     : Stops a rack C=cage, R=rack");
+        $irc->yield( privmsg => $dest => "stop10 [C R]       : Stops 10 clones in a rack C=cage, R=rack");
         $irc->yield( privmsg => $dest => "stopgrp [C R G]    : Stops a group C=cage, R=rack, G=group");
         $irc->yield( privmsg => $dest => "botstat            : Tells you about my processing");
         $irc->yield( privmsg => $dest => "tweetstats #[hash] : Tweet grid stats, add a whimsical hashtag");
@@ -275,11 +277,47 @@ sub process {
 		catch { $irc->yield( ctcp => $channels[0] => "ACTION just tried to tweet and it failed: $_." ); };
         $cmdok="ok";
     }
+    # start the next group of 10
+    if ( my ($cage, $rack) = $what =~ /^start10 (\d) (\d)$/ ) {
+        $irc->yield( privmsg => $channel => "$nick asked me to start 10 clones in cage $cage, rack $rack");
+        my $g;
+        for ($g=0; $g<24; $g++) {
+            if ( ( defined $gueststatus->{ "G$cage$rack" . sprintf("%04d", $g) . "0" } ) &&
+                 ( $gueststatus->{ "G$cage$rack" . sprintf("%04d", $g) . "0" } eq "active" ) ) {
+                next;
+            }
+        }
+        if ( $g < 24 ) {
+            &startgrp($nick,$cage,$rack,$g);
+            $irc->yield( ctcp => $channel => "ACTION puts that in the queue");
+        } else {
+            $irc->yield( privmsg => $channel => "Sorry $nick, all groups in cage $cage, rack $rack are already active");
+        }
+        $cmdok="ok";
+    }
     # start a group of servers
     if ( my ($cage, $rack, $group) = $what =~ /^startgrp (\d) (\d) (\d\d?)$/ ) {
         $irc->yield( privmsg => $channel => "$nick asked me to start cage $cage, rack $rack, group $group");
 	    $irc->yield( ctcp => $channel => "ACTION puts that in the queue");
 	    &startgrp($nick,$cage,$rack,$group);
+        $cmdok="ok";
+    }
+    # stop the next group of 10
+    if ( my ($cage, $rack) = $what =~ /^stop10 (\d) (\d)$/ ) {
+        $irc->yield( privmsg => $channel => "$nick asked me to stop 10 clones in cage $cage, rack $rack");
+        my $g;
+        for ($g=23; $g>=0; $g--) {
+            if ( ( defined $gueststatus->{ "G$cage$rack" . sprintf("%04d", $g) . "0" } ) &&
+                 ( $gueststatus->{ "G$cage$rack" . sprintf("%04d", $g) . "0" } ne "active" ) ) {
+                next;
+            }
+        }
+        if ( $g >= 0 ) {
+            &stopgrp($nick,$cage,$rack,$g);
+            $irc->yield( ctcp => $channel => "ACTION puts that in the queue");
+        } else {
+            $irc->yield( privmsg => $channel => "Sorry $nick, all groups in cage $cage, rack $rack are already stopped");
+        }
         $cmdok="ok";
     }
     # stop a group of servers
