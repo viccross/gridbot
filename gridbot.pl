@@ -289,7 +289,7 @@ sub process {
         }
         if ( $g < 24 ) {
             &startgrp($nick,$cage,$rack,$g);
-            $irc->yield( ctcp => $channel => "ACTION puts start of group $g in the queue");
+            $irc->yield( ctcp => $channel => "ACTION puts start of C$cage R$rack G$g in the queue");
         } else {
             $irc->yield( privmsg => $channel => "Sorry $nick, all groups in cage $cage, rack $rack are already active");
         }
@@ -314,7 +314,7 @@ sub process {
         }
         if ( $g >= 0 ) {
             &stopgrp($nick,$cage,$rack,$g);
-            $irc->yield( ctcp => $channel => "ACTION puts stop of group $g in the queue");
+            $irc->yield( ctcp => $channel => "ACTION puts stop of C$cage R$rack G$g in the queue");
         } else {
             $irc->yield( privmsg => $channel => "Sorry $nick, all groups in cage $cage, rack $rack are already stopped");
         }
