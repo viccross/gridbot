@@ -282,7 +282,8 @@ sub process {
         $irc->yield( privmsg => $channel => "$nick asked me to start 10 clones in cage $cage, rack $rack");
         my $g;
         for ($g=0; $g<24; $g++) {
-            if ( ( defined $gueststatus->{ "G$cage$rack" . sprintf("%04d", $g) . "0" } ) &&
+            $irc->yield( ctcp => $channel => "ACTION testing group $g");
+            if ( ( !defined $gueststatus->{ "G$cage$rack" . sprintf("%04d", $g) . "0" } ) ||
                  ( $gueststatus->{ "G$cage$rack" . sprintf("%04d", $g) . "0" } ne "active" ) ) {
                 last;
             }
@@ -302,11 +303,12 @@ sub process {
 	    &startgrp($nick,$cage,$rack,$group);
         $cmdok="ok";
     }
-    # stop the next group of 10
+    # stop the last group of 10
     if ( my ($cage, $rack) = $what =~ /^stop10 (\d) (\d)$/ ) {
         $irc->yield( privmsg => $channel => "$nick asked me to stop 10 clones in cage $cage, rack $rack");
         my $g;
         for ($g=23; $g>=0; $g--) {
+            $irc->yield( ctcp => $channel => "ACTION testing group $g");
             if ( ( defined $gueststatus->{ "G$cage$rack" . sprintf("%04d", $g) . "0" } ) &&
                  ( $gueststatus->{ "G$cage$rack" . sprintf("%04d", $g) . "0" } eq "active" ) ) {
                 last;
