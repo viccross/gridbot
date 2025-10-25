@@ -282,7 +282,6 @@ sub process {
         $irc->yield( privmsg => $channel => "$nick asked me to start 10 clones in cage $cage, rack $rack");
         my $g;
         for ($g=0; $g<24; $g++) {
-            $irc->yield( ctcp => $channel => "ACTION testing group $g");
             if ( ( !defined $gueststatus->{ "G$cage$rack" . sprintf("%04d", $g) . "0" } ) ||
                  ( $gueststatus->{ "G$cage$rack" . sprintf("%04d", $g) . "0" } ne "active" ) ) {
                 last;
@@ -290,7 +289,7 @@ sub process {
         }
         if ( $g < 24 ) {
             &startgrp($nick,$cage,$rack,$g);
-            $irc->yield( ctcp => $channel => "ACTION puts that in the queue");
+            $irc->yield( ctcp => $channel => "ACTION puts start of group $g in the queue");
         } else {
             $irc->yield( privmsg => $channel => "Sorry $nick, all groups in cage $cage, rack $rack are already active");
         }
@@ -308,7 +307,6 @@ sub process {
         $irc->yield( privmsg => $channel => "$nick asked me to stop 10 clones in cage $cage, rack $rack");
         my $g;
         for ($g=23; $g>=0; $g--) {
-            $irc->yield( ctcp => $channel => "ACTION testing group $g");
             if ( ( defined $gueststatus->{ "G$cage$rack" . sprintf("%04d", $g) . "0" } ) &&
                  ( $gueststatus->{ "G$cage$rack" . sprintf("%04d", $g) . "0" } eq "active" ) ) {
                 last;
@@ -316,7 +314,7 @@ sub process {
         }
         if ( $g >= 0 ) {
             &stopgrp($nick,$cage,$rack,$g);
-            $irc->yield( ctcp => $channel => "ACTION puts that in the queue");
+            $irc->yield( ctcp => $channel => "ACTION puts stop of group $g in the queue");
         } else {
             $irc->yield( privmsg => $channel => "Sorry $nick, all groups in cage $cage, rack $rack are already stopped");
         }
