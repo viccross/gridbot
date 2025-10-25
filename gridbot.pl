@@ -283,8 +283,8 @@ sub process {
         my $g;
         for ($g=0; $g<24; $g++) {
             if ( ( defined $gueststatus->{ "G$cage$rack" . sprintf("%04d", $g) . "0" } ) &&
-                 ( $gueststatus->{ "G$cage$rack" . sprintf("%04d", $g) . "0" } eq "active" ) ) {
-                next;
+                 ( $gueststatus->{ "G$cage$rack" . sprintf("%04d", $g) . "0" } ne "active" ) ) {
+                last;
             }
         }
         if ( $g < 24 ) {
@@ -308,8 +308,8 @@ sub process {
         my $g;
         for ($g=23; $g>=0; $g--) {
             if ( ( defined $gueststatus->{ "G$cage$rack" . sprintf("%04d", $g) . "0" } ) &&
-                 ( $gueststatus->{ "G$cage$rack" . sprintf("%04d", $g) . "0" } ne "active" ) ) {
-                next;
+                 ( $gueststatus->{ "G$cage$rack" . sprintf("%04d", $g) . "0" } eq "active" ) ) {
+                last;
             }
         }
         if ( $g >= 0 ) {
